@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8">
-  <title>自助入住人臉驗證</title>
+  <title>自助入住人臉驗證（Face++ 版）</title>
 </head>
 <body>
   <h2>上傳您的證件照片</h2>
@@ -24,64 +24,69 @@
     const snapshot = document.getElementById('snapshot');
     const result = document.getElementById('result');
 
-    console.log("初始化攝像頭");
+    const FACEPP_API_KEY = 'UwDnueoQfGQldxP6e_SJQpZUJtFAs9YA';
+    const FACEPP_API_SECRET = 'ks9e_h3BkVfQ52pvc-FyWgdzcHUvmY0S';
+    const FACEPP_ENDPOINT = 'https://api-us.faceplusplus.com/facepp/v3/compare';
 
     async function initCamera() {
       if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
         alert("⚠️ 為了安全與權限需求，請透過 HTTPS 或在本地端 localhost 啟動頁面才能使用攝像頭功能。當前網址：" + location.href);
         return;
       }
-
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
         video.srcObject = stream;
-        console.log("攝像頭啟用成功");
       } catch (error) {
         console.error("攝像頭啟用失敗：", error);
-        alert("無法啟用攝像頭，請確認：\n1. 您的瀏覽器已允許使用攝像頭\n2. 此頁面是 HTTPS 或 localhost\n3. 使用的是支援的瀏覽器 (如 Chrome, Firefox)\n\n錯誤內容：" + error.message);
+        alert("無法啟用攝像頭：" + error.message);
       }
     }
 
     initCamera();
 
     function capturePhoto() {
-      console.log("執行拍照函式");
       try {
         const ctx = canvas.getContext('2d');
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         const dataURL = canvas.toDataURL('image/png');
-        console.log("拍照成功，產生 dataURL");
         snapshot.src = dataURL;
         snapshot.style.display = 'block';
         canvas.style.display = 'block';
       } catch (e) {
-        console.error("拍照失敗：", e);
         alert("拍照失敗：" + e.message);
       }
     }
 
     async function submitPhotos() {
-      console.log("開始提交驗證資料");
       const idFile = document.getElementById('idPhoto').files[0];
       if (!idFile) {
         alert("請先上傳證件照片");
         return;
       }
 
+      // 將自拍照轉為 Blob
       const selfieDataUrl = canvas.toDataURL('image/png');
+      const blob = await (await fetch(selfieDataUrl)).blob();
+
       const formData = new FormData();
-      formData.append('id_photo', idFile);
-      formData.append('selfie', selfieDataUrl);
+      formData.append('api_key', FACEPP_API_KEY);
+      formData.append('api_secret', FACEPP_API_SECRET);
+      formData.append('image_file1', idFile);
+      formData.append('image_file2', blob);
 
       try {
-        const res = await fetch('/verify', {
+        const res = await fetch(FACEPP_ENDPOINT, {
           method: 'POST',
           body: formData
         });
-
         const json = await res.json();
-        console.log("伺服器回傳結果：", json);
-        result.innerText = json.verified ? "✅ 驗證成功！歡迎入住" : "❌ 驗證失敗，請聯絡櫃台";
+
+        if (json.confidence !== undefined) {
+          const similarity = json.confidence;
+          result.innerText = similarity > 60 ? `✅ 驗證成功，相似度 ${similarity}` : `❌ 驗證失敗，相似度 ${similarity}`;
+        } else {
+          result.innerText = "❌ 錯誤：" + (json.error_message || "無法比對");
+        }
       } catch (e) {
         console.error("提交錯誤：", e);
         result.innerText = "⚠️ 發生錯誤：" + e.message;
@@ -90,4 +95,3 @@
   </script>
 </body>
 </html>
- 
