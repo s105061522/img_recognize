@@ -24,20 +24,15 @@
     const snapshot = document.getElementById('snapshot');
     const result = document.getElementById('result');
 
-    const FACEPP_API_KEY = 'UwDnueoQfGQldxP6e_SJQpZUJtFAs9YA';
-    const FACEPP_API_SECRET = 'ks9e_h3BkVfQ52pvc-FyWgdzcHUvmY0S';
+    const FACEPP_API_KEY = 'YOUR_FACEPP_API_KEY';
+    const FACEPP_API_SECRET = 'YOUR_FACEPP_API_SECRET';
     const FACEPP_ENDPOINT = 'https://api-us.faceplusplus.com/facepp/v3/compare';
 
     async function initCamera() {
-      if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
-        alert("⚠️ 為了安全與權限需求，請透過 HTTPS 或在本地端 localhost 啟動頁面才能使用攝像頭功能。當前網址：" + location.href);
-        return;
-      }
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
         video.srcObject = stream;
       } catch (error) {
-        console.error("攝像頭啟用失敗：", error);
         alert("無法啟用攝像頭：" + error.message);
       }
     }
@@ -45,16 +40,40 @@
     initCamera();
 
     function capturePhoto() {
-      try {
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const dataURL = canvas.toDataURL('image/png');
-        snapshot.src = dataURL;
-        snapshot.style.display = 'block';
-        canvas.style.display = 'block';
-      } catch (e) {
-        alert("拍照失敗：" + e.message);
-      }
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const dataURL = canvas.toDataURL('image/jpeg', 0.85);
+      snapshot.src = dataURL;
+      snapshot.style.display = 'block';
+      canvas.style.display = 'block';
+    }
+
+    function resizeImage(file, maxSize = 800) {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        const reader = new FileReader();
+
+        reader.onload = (e) => {
+          img.src = e.target.result;
+        };
+
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const scale = Math.min(maxSize / img.width, maxSize / img.height);
+          canvas.width = img.width * scale;
+          canvas.height = img.height * scale;
+
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+          canvas.toBlob(blob => {
+            resolve(blob);
+          }, 'image/jpeg', 0.85);
+        };
+
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
     }
 
     async function submitPhotos() {
@@ -64,15 +83,17 @@
         return;
       }
 
-      // 將自拍照轉為 Blob
-      const selfieDataUrl = canvas.toDataURL('image/png');
-      const blob = await (await fetch(selfieDataUrl)).blob();
+      result.innerText = "⏳ 驗證中，請稍候...";
+
+      const selfieDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      const selfieBlob = await (await fetch(selfieDataUrl)).blob();
+      const resizedIdBlob = await resizeImage(idFile);
 
       const formData = new FormData();
       formData.append('api_key', FACEPP_API_KEY);
       formData.append('api_secret', FACEPP_API_SECRET);
-      formData.append('image_file1', idFile);
-      formData.append('image_file2', blob);
+      formData.append('image_file1', resizedIdBlob, 'id.jpg');
+      formData.append('image_file2', selfieBlob, 'selfie.jpg');
 
       try {
         const res = await fetch(FACEPP_ENDPOINT, {
