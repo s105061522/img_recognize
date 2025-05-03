@@ -72,25 +72,21 @@
       return new Promise((resolve, reject) => {
         const img = new Image();
         const reader = new FileReader();
-
         reader.onload = (e) => {
           img.src = e.target.result;
         };
-
         img.onload = () => {
           const canvas = document.createElement('canvas');
           const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
           canvas.width = img.width * scale;
           canvas.height = img.height * scale;
-
           const ctx = canvas.getContext('2d');
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-
           canvas.toBlob(blob => {
-            resolve(blob);
-          }, 'image/jpeg', 0.9);
+            const file = new File([blob], 'resized.jpg', { type: 'image/jpeg' });
+            resolve(file);
+          }, 'image/jpeg', 0.8);
         };
-
         reader.onerror = reject;
         reader.readAsDataURL(file);
       });
@@ -110,16 +106,19 @@
       const data = await response.json();
 
       console.log("🔍 OCR 回傳完整內容：", data);
+      console.log("📦 上傳圖像大小：", imageBlob.size, "bytes");
 
       const parsedTextRaw = data?.ParsedResults?.[0]?.ParsedText?.trim() || '';
       const parsedText = parsedTextRaw.toUpperCase();
       ocrText.innerText = "📄 OCR 辨識文字：\n" + parsedText;
 
       const taiwanIdRegex = /[A-Z][12]\d{8}/;
+      const fuzzyIdRegex = /[A-Z][0-9A-Z]{9}/;
       const mrzRegex = /P<|[A-Z]{3}[0-9<]{10,}/;
       const keywords = ["REPUBLIC", "IDENTITY", "PASSPORT", "ROC", "TAIWAN", "MINISTRY", "ID", "NATIONAL", "CHINA"];
 
       const hasTaiwanId = taiwanIdRegex.test(parsedText);
+      const fuzzyMatch = !hasTaiwanId && parsedText.match(fuzzyIdRegex);
       const hasMrz = mrzRegex.test(parsedText);
       const keywordMatched = keywords.some(word => parsedText.includes(word));
       const fallback = parsedText.length >= 30 && /\d{2,}/.test(parsedText);
@@ -128,16 +127,19 @@
 
       let debug = '';
       debug += hasTaiwanId ? `✅ 偵測到身分證號：${idMatch[0]}\n` : '❌ 身分證號未命中\n';
+      if (!hasTaiwanId && fuzzyMatch) {
+        debug += `⚠️ 模糊命中（可能誤辨）：${fuzzyMatch[0]}\n`;
+      }
       debug += hasMrz ? '✅ MRZ 格式命中\n' : '❌ MRZ 格式未命中\n';
       debug += keywordMatched ? '✅ 關鍵字命中\n' : '❌ 關鍵字未命中\n';
       debug += fallback ? '✅ fallback 條件成立\n' : '❌ fallback 條件未成立\n';
-      debug += (hasTaiwanId || hasMrz || keywordMatched || fallback)
-        ? '→ ✅ 判定為正式證件'
-        : '→ ❌ 判定為非正式證件';
+
+      const finalResult = hasTaiwanId || hasMrz || keywordMatched || fallback || !!fuzzyMatch;
+      debug += finalResult ? '→ ✅ 判定為正式證件' : '→ ❌ 判定為非正式證件';
 
       ocrDetails.innerText = debug;
 
-      return hasTaiwanId || hasMrz || keywordMatched || fallback;
+      return finalResult;
     }
 
     async function submitPhotos() {
@@ -155,8 +157,8 @@
       const selfieBlob = await (await fetch(selfieDataUrl)).blob();
       const resizedIdBlob = await resizeImage(idFile);
 
-      if (resizedIdBlob.size > 2000000) {
-        result.innerText = "❌ 錯誤：證件照片壓縮後仍然過大，請上傳較小的圖檔。";
+      if (resizedIdBlob.size > 1024000) {
+        result.innerText = "❌ 錯誤：壓縮後圖檔仍超過 1MB，請換張照片。";
         return;
       }
 
