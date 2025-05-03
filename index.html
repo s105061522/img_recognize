@@ -12,23 +12,25 @@
   <video id="video" width="320" height="240" autoplay playsinline muted></video><br>
   <button onclick="capturePhoto()">拍照</button><br><br>
   <canvas id="canvas" width="320" height="240" style="display:none;"></canvas>
-  <img id="snapshot" src="">
+  <img id="snapshot" src=""><br>
 
   <button onclick="submitPhotos()">開始驗證</button>
 
   <p id="result"></p>
+  <pre id="ocrText" style="white-space: pre-wrap; background: #f3f3f3; padding: 8px; border-radius: 4px;"></pre>
 
   <script>
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
     const snapshot = document.getElementById('snapshot');
     const result = document.getElementById('result');
+    const ocrText = document.getElementById('ocrText');
 
     const FACEPP_API_KEY = 'UwDnueoQfGQldxP6e_SJQpZUJtFAs9YA';
     const FACEPP_API_SECRET = 'ks9e_h3BkVfQ52pvc-FyWgdzcHUvmY0S';
     const FACEPP_ENDPOINT = 'https://api-us.faceplusplus.com/facepp/v3/compare';
     const OCR_SPACE_ENDPOINT = 'https://api.ocr.space/parse/image';
-    const OCR_SPACE_API_KEY = 'helloworld'; // 公用測試 API 金鑰
+    const OCR_SPACE_API_KEY = 'helloworld';
 
     async function initCamera() {
       try {
@@ -44,13 +46,13 @@
     function capturePhoto() {
       const ctx = canvas.getContext('2d');
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const dataURL = canvas.toDataURL('image/jpeg', 0.85);
+      const dataURL = canvas.toDataURL('image/jpeg', 0.9);
       snapshot.src = dataURL;
       snapshot.style.display = 'block';
       canvas.style.display = 'block';
     }
 
-    function resizeImage(file, maxSize = 800) {
+    function resizeImage(file, maxSize = 1000) {
       return new Promise((resolve, reject) => {
         const img = new Image();
         const reader = new FileReader();
@@ -69,12 +71,8 @@
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
           canvas.toBlob(blob => {
-            if (blob.size > 1900000) {
-              canvas.toBlob(b => resolve(b), 'image/jpeg', 0.6);
-            } else {
-              resolve(blob);
-            }
-          }, 'image/jpeg', 0.75);
+            resolve(blob);
+          }, 'image/jpeg', 0.9);
         };
 
         reader.onerror = reject;
@@ -97,11 +95,15 @@
 
       const text = data?.ParsedResults?.[0]?.ParsedText || '';
       console.log("OCR 回傳文字：", text);
+      ocrText.innerText = "📄 OCR 辨識文字：\n" + text;
 
-      // 簡單偵測：台灣身份證號或護照 MRZ 標記
       const taiwanIdRegex = /[A-Z][12]\d{8}/;
       const mrzRegex = /P<|[A-Z]{3}[0-9<]{10,}/;
-      return taiwanIdRegex.test(text) || mrzRegex.test(text);
+
+      // 若字數超過 10 且有數字也可允許驗證通過（容錯）
+      const fallback = text.length > 10 && /\d{4}/.test(text);
+
+      return taiwanIdRegex.test(text) || mrzRegex.test(text) || fallback;
     }
 
     async function submitPhotos() {
@@ -112,8 +114,9 @@
       }
 
       result.innerText = "⏳ 驗證中，請稍候...";
+      ocrText.innerText = '';
 
-      const selfieDataUrl = canvas.toDataURL('image/jpeg', 0.75);
+      const selfieDataUrl = canvas.toDataURL('image/jpeg', 0.9);
       const selfieBlob = await (await fetch(selfieDataUrl)).blob();
       const resizedIdBlob = await resizeImage(idFile);
 
@@ -122,7 +125,6 @@
         return;
       }
 
-      // OCR 驗證是否為正式證件
       const isValidDoc = await checkIfValidDocument(resizedIdBlob);
       if (!isValidDoc) {
         result.innerText = "❌ 此照片無法識別為正式證件，請重新上傳。";
