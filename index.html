@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8">
-  <title>自助入住人臉驗證（Face++ 版）</title>
+  <title>自助入住人臉驗證（Face++ + OCR 驗證）</title>
 </head>
 <body>
   <h2>上傳您的證件照片</h2>
@@ -27,6 +27,8 @@
     const FACEPP_API_KEY = 'UwDnueoQfGQldxP6e_SJQpZUJtFAs9YA';
     const FACEPP_API_SECRET = 'ks9e_h3BkVfQ52pvc-FyWgdzcHUvmY0S';
     const FACEPP_ENDPOINT = 'https://api-us.faceplusplus.com/facepp/v3/compare';
+    const OCR_SPACE_ENDPOINT = 'https://api.ocr.space/parse/image';
+    const OCR_SPACE_API_KEY = 'helloworld'; // 公用測試 API 金鑰
 
     async function initCamera() {
       try {
@@ -68,7 +70,6 @@
 
           canvas.toBlob(blob => {
             if (blob.size > 1900000) {
-              // 遞迴再壓縮一輪（降低品質）
               canvas.toBlob(b => resolve(b), 'image/jpeg', 0.6);
             } else {
               resolve(blob);
@@ -79,6 +80,28 @@
         reader.onerror = reject;
         reader.readAsDataURL(file);
       });
+    }
+
+    async function checkIfValidDocument(imageBlob) {
+      const ocrFormData = new FormData();
+      ocrFormData.append('apikey', OCR_SPACE_API_KEY);
+      ocrFormData.append('language', 'eng');
+      ocrFormData.append('isOverlayRequired', false);
+      ocrFormData.append('file', imageBlob);
+
+      const response = await fetch(OCR_SPACE_ENDPOINT, {
+        method: 'POST',
+        body: ocrFormData
+      });
+      const data = await response.json();
+
+      const text = data?.ParsedResults?.[0]?.ParsedText || '';
+      console.log("OCR 回傳文字：", text);
+
+      // 簡單偵測：台灣身份證號或護照 MRZ 標記
+      const taiwanIdRegex = /[A-Z][12]\d{8}/;
+      const mrzRegex = /P<|[A-Z]{3}[0-9<]{10,}/;
+      return taiwanIdRegex.test(text) || mrzRegex.test(text);
     }
 
     async function submitPhotos() {
@@ -96,6 +119,13 @@
 
       if (resizedIdBlob.size > 2000000) {
         result.innerText = "❌ 錯誤：證件照片壓縮後仍然過大，請上傳較小的圖檔。";
+        return;
+      }
+
+      // OCR 驗證是否為正式證件
+      const isValidDoc = await checkIfValidDocument(resizedIdBlob);
+      if (!isValidDoc) {
+        result.innerText = "❌ 此照片無法識別為正式證件，請重新上傳。";
         return;
       }
 
