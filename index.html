@@ -18,6 +18,7 @@
 
   <p id="result"></p>
   <pre id="ocrText" style="white-space: pre-wrap; background: #f3f3f3; padding: 8px; border-radius: 4px;"></pre>
+  <pre id="ocrDetails" style="white-space: pre-wrap; background: #e9ffe9; padding: 8px; border-radius: 4px; color: green;"></pre>
 
   <script>
     const video = document.getElementById('video');
@@ -25,6 +26,7 @@
     const snapshot = document.getElementById('snapshot');
     const result = document.getElementById('result');
     const ocrText = document.getElementById('ocrText');
+    const ocrDetails = document.getElementById('ocrDetails');
 
     const FACEPP_API_KEY = 'UwDnueoQfGQldxP6e_SJQpZUJtFAs9YA';
     const FACEPP_API_SECRET = 'ks9e_h3BkVfQ52pvc-FyWgdzcHUvmY0S';
@@ -101,11 +103,17 @@
 
       const taiwanIdRegex = /[A-Z][12]\d{8}/;
       const mrzRegex = /P<|[A-Z]{3}[0-9<]{10,}/;
-
       const keywords = ["REPUBLIC", "IDENTITY", "PASSPORT", "ROC", "TAIWAN", "MINISTRY", "ID", "NATIONAL", "CHINA"];
-      const keywordMatched = keywords.some(word => parsedText.includes(word));
 
+      const keywordMatched = keywords.some(word => parsedText.includes(word));
       const fallback = parsedText.length >= 30 && /\d{2,}/.test(parsedText);
+
+      const idMatch = parsedText.match(/[A-Z][12]\d{8}/);
+      if (idMatch) {
+        ocrDetails.innerText = `✅ 偵測到身分證字號：${idMatch[0]}`;
+      } else {
+        ocrDetails.innerText = '';
+      }
 
       return taiwanIdRegex.test(parsedText) || mrzRegex.test(parsedText) || keywordMatched || fallback;
     }
@@ -119,6 +127,7 @@
 
       result.innerText = "⏳ 驗證中，請稍候...";
       ocrText.innerText = '';
+      ocrDetails.innerText = '';
 
       const selfieDataUrl = canvas.toDataURL('image/jpeg', 0.9);
       const selfieBlob = await (await fetch(selfieDataUrl)).blob();
