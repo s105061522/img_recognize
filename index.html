@@ -93,17 +93,18 @@
       });
       const data = await response.json();
 
-      const text = data?.ParsedResults?.[0]?.ParsedText || '';
-      console.log("OCR 回傳文字：", text);
-      ocrText.innerText = "📄 OCR 辨識文字：\n" + text;
+      console.log("🔍 OCR 回傳完整內容：", data);
+
+      const parsedText = data?.ParsedResults?.[0]?.ParsedText?.trim() || '';
+      ocrText.innerText = "📄 OCR 辨識文字：\n" + parsedText;
 
       const taiwanIdRegex = /[A-Z][12]\d{8}/;
       const mrzRegex = /P<|[A-Z]{3}[0-9<]{10,}/;
 
-      // 若字數超過 10 且有數字也可允許驗證通過（容錯）
-      const fallback = text.length > 10 && /\d{4}/.test(text);
+      // 放寬條件：只要辨識文字長度 >= 30 且含數字也接受
+      const fallback = parsedText.length >= 30 && /\d{2,}/.test(parsedText);
 
-      return taiwanIdRegex.test(text) || mrzRegex.test(text) || fallback;
+      return taiwanIdRegex.test(parsedText) || mrzRegex.test(parsedText) || fallback;
     }
 
     async function submitPhotos() {
