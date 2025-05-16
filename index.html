@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8">
-  <title>自助入住人臉驗證</title>
+  <title>自助入住驗證</title>
 </head>
 <body>
   <h2>自助入住驗證</h2>
@@ -33,6 +33,7 @@
   const OCR_SPACE_ENDPOINT = 'https://api.ocr.space/parse/image';
   const OCR_SPACE_API_KEY = 'helloworld';
   const ID_WRITE_URL = 'https://script.google.com/macros/s/AKfycbzjPK4G4Kgj0X5lLRDeY2EixBAOFuw58uhMTc6G8WAZyHwOmXKUUo_qnpzBjPFLw-tu/exec';
+  const RESERVATION_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxcloKN6uq7sJ9-IrfMlecLdzDqrLSW-GXhVYl_m24i9nNv0t_oYsmwddelmsyLx8XkTg/exec';
 
   const video = document.getElementById('video');
   const canvas = document.getElementById('canvas');
@@ -42,6 +43,18 @@
   const ocrDetails = document.getElementById('ocrDetails');
   const idPreview = document.getElementById('idPreview');
   const roomInfo = document.getElementById('roomInfo');
+
+  async function checkPhoneExists(phone) {
+    try {
+      const res = await fetch(RESERVATION_SHEET_URL);
+      const data = await res.json();
+      const normalized = phone.startsWith('0') ? phone : '0' + phone;
+      return data.some(entry => entry['電話'] === normalized || entry['電話'] === "'" + normalized);
+    } catch (err) {
+      console.error("❌ 查詢預約名單失敗:", err);
+      return false;
+    }
+  }
 
   function previewIdPhoto(event) {
     const file = event.target.files[0];
@@ -107,7 +120,8 @@
     const response = await fetch(OCR_SPACE_ENDPOINT, { method: 'POST', body: ocrFormData });
     const data = await response.json();
 
-    const parsedText = (data?.ParsedResults?.[0]?.ParsedText || '').toUpperCase();
+    const parsedTextRaw = data?.ParsedResults?.[0]?.ParsedText?.trim() || '';
+    const parsedText = parsedTextRaw.toUpperCase();
     ocrText.innerText = "📄 OCR 辨識文字：\n" + parsedText;
 
     const taiwanIdRegex = /[A-Z][12]\d{8}/;
@@ -120,6 +134,7 @@
     const hasMrz = mrzRegex.test(parsedText);
     const keywordMatched = keywords.some(word => parsedText.includes(word));
     const fallback = parsedText.length >= 30 && /\d{2,}/.test(parsedText);
+
     const idMatch = parsedText.match(taiwanIdRegex);
 
     let debug = '';
@@ -128,8 +143,9 @@
     debug += hasMrz ? '✅ MRZ 格式命中\n' : '❌ MRZ 格式未命中\n';
     debug += keywordMatched ? '✅ 關鍵字命中\n' : '❌ 關鍵字未命中\n';
     debug += fallback ? '✅ fallback 條件成立\n' : '❌ fallback 條件未成立\n';
-    debug += (hasTaiwanId || hasMrz || keywordMatched || fallback || fuzzyMatch)
-      ? '→ ✅ 判定為正式證件' : '→ ❌ 判定為非正式證件';
+
+    const finalResult = hasTaiwanId || hasMrz || keywordMatched || fallback || !!fuzzyMatch;
+    debug += finalResult ? '→ ✅ 判定為正式證件' : '→ ❌ 判定為非正式證件';
 
     ocrDetails.innerText = debug;
     return hasTaiwanId ? idMatch[0] : null;
@@ -140,6 +156,13 @@
     const phone = document.getElementById('phone').value.trim();
     if (!idFile || !phone) {
       alert("請上傳證件並填寫手機號碼");
+      return;
+    }
+
+    // 新增：檢查手機號碼是否存在於預約名單
+    const phoneValid = await checkPhoneExists(phone);
+    if (!phoneValid) {
+      result.innerText = "❌ 查無此手機號碼的預約紀錄，請確認後再試。";
       return;
     }
 
@@ -166,16 +189,17 @@
     const formData = new FormData();
     formData.append('api_key', FACEPP_API_KEY);
     formData.append('api_secret', FACEPP_API_SECRET);
-    formData.append('image_file1', resizedIdBlob);
-    formData.append('image_file2', selfieBlob);
+    formData.append('image_file1', resizedIdBlob, 'id.jpg');
+    formData.append('image_file2', selfieBlob, 'selfie.jpg');
 
     try {
       const res = await fetch(FACEPP_ENDPOINT, { method: 'POST', body: formData });
       const json = await res.json();
       const similarity = json.confidence;
 
-      if (similarity && similarity > 60) {
+      if (similarity !== undefined && similarity > 60) {
         result.innerText = `✅ 驗證成功，相似度 ${similarity}`;
+
         const today = new Date().toISOString().split('T')[0];
         const usedRooms = JSON.parse(localStorage.getItem('usedRooms_' + today) || '[]');
         const room = [...Array(12).keys()].map(n => n + 1).find(r => !usedRooms.includes(r));
