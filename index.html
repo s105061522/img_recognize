@@ -64,7 +64,7 @@ let selfieBlob = null;
 
 function nextStep(step) {
   document.querySelectorAll('#step-container > div').forEach(div => div.classList.remove('active'));
-  document.getElementById(step${step}).classList.add('active');
+  document.getElementById(`step${step}`).classList.add('active');
   if (step === 2) initCamera('idVideo');
   if (step === 3) initCamera('selfieVideo');
 }
@@ -140,8 +140,8 @@ async function confirmId() {
 
   const idMatch = parsedText.match(taiwanIdRegex);
   let debug = '';
-  debug += hasTaiwanId ? ✅ 偵測到身分證號：${idMatch[0]}\n : '❌ 身分證號未命中\n';
-  if (!hasTaiwanId && fuzzyMatch) debug += ⚠️ 模糊命中（可能誤辨）：${fuzzyMatch[0]}\n;
+  debug += hasTaiwanId ? `✅ 偵測到身分證號：${idMatch[0]}\n` : '❌ 身分證號未命中\n';
+  if (!hasTaiwanId && fuzzyMatch) debug += `⚠️ 模糊命中（可能誤辨）：${fuzzyMatch[0]}\n`;
   debug += hasMrz ? '✅ MRZ 格式命中\n' : '❌ MRZ 格式未命中\n';
   debug += keywordMatched ? '✅ 關鍵字命中\n' : '❌ 關鍵字未命中\n';
   debug += fallback ? '✅ fallback 條件成立\n' : '❌ fallback 條件未成立\n';
@@ -177,10 +177,10 @@ async function submitVerification() {
     let resultText;
     if (sim !== undefined && sim > 60) {
       const room = await assignRoom();
-      resultText = ✅ 驗證成功，相似度 ${sim};
-      document.getElementById('roomInfo').innerHTML = 房號：<b>${room}</b><br>入場密碼：<b>8899</b>;
+      resultText = `✅ 驗證成功，相似度 ${sim}`;
+      document.getElementById('roomInfo').innerHTML = `房號：<b>${room}</b><br>入場密碼：<b>8899</b>`;
     } else {
-      resultText = ❌ 驗證失敗，相似度 ${sim || '無法辨識'};
+      resultText = `❌ 驗證失敗，相似度 ${sim || '無法辨識'}`;
     }
     document.getElementById('result').textContent = resultText;
     nextStep(4);
