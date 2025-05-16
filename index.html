@@ -1,3 +1,73 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>自助入住驗證</title>
+</head>
+<body>
+  <h2>自助入住驗證</h2>
+  <label for="phone">手機號碼：</label>
+  <input type="tel" id="phone" placeholder="請輸入手機號碼"><br><br>
+
+  <h2>上傳您的證件照片</h2>
+  <input type="file" id="idPhoto" accept="image/*" onchange="previewIdPhoto(event)"><br><br>
+  <img id="idPreview" src="" style="max-width: 320px; display: none; border: 1px solid #ccc;"><br>
+
+  <h2>拍攝現場自拍照</h2>
+  <video id="video" width="320" height="240" autoplay playsinline muted></video><br>
+  <button onclick="capturePhoto()">拍照</button><br><br>
+  <canvas id="canvas" width="320" height="240" style="display:none;"></canvas>
+  <img id="snapshot" src=""><br>
+
+  <button onclick="submitPhotos()">開始驗證</button>
+
+  <p id="result"></p>
+  <pre id="ocrText" style="white-space: pre-wrap; background: #f3f3f3; padding: 8px; border-radius: 4px;"></pre>
+  <pre id="ocrDetails" style="white-space: pre-wrap; background: #e9ffe9; padding: 8px; border-radius: 4px; color: green;"></pre>
+  <pre id="roomInfo" style="white-space: pre-wrap; background: #fff3cd; padding: 8px; border-radius: 4px; color: #856404;"></pre>
+
+<script>
+  const FACEPP_API_KEY = 'UwDnueoQfGQldxP6e_SJQpZUJtFAs9YA';
+  const FACEPP_API_SECRET = 'ks9e_h3BkVfQ52pvc-FyWgdzcHUvmY0S';
+  const FACEPP_ENDPOINT = 'https://api-us.faceplusplus.com/facepp/v3/compare';
+  const OCR_SPACE_ENDPOINT = 'https://api.ocr.space/parse/image';
+  const OCR_SPACE_API_KEY = 'helloworld';
+  const ID_WRITE_URL = 'https://script.google.com/macros/s/AKfycbzjPK4G4Kgj0X5lLRDeY2EixBAOFuw58uhMTc6G8WAZyHwOmXKUUo_qnpzBjPFLw-tu/exec';
+  const RESERVATION_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxcloKN6uq7sJ9-IrfMlecLdzDqrLSW-GXhVYl_m24i9nNv0t_oYsmwddelmsyLx8XkTg/exec';
+
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('canvas');
+  const snapshot = document.getElementById('snapshot');
+  const result = document.getElementById('result');
+  const ocrText = document.getElementById('ocrText');
+  const ocrDetails = document.getElementById('ocrDetails');
+  const idPreview = document.getElementById('idPreview');
+  const roomInfo = document.getElementById('roomInfo');
+
+  let ocrName = null; // 全域變數儲存 OCR 擷取的姓名
+
+  function previewIdPhoto(event) {
+    const file = event.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = function (e) {
+        idPreview.src = e.target.result;
+        idPreview.style.display = 'block';
+      };
+      reader.readAsDataURL(file);
+    }
+  }
+
+  async function initCamera() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      video.srcObject = stream;
+    } catch (error) {
+      alert("無法啟用攝像頭：" + error.message);
+    }
+  }
+
+  initCamera();
   function capturePhoto() {
     const ctx = canvas.getContext('2d');
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
