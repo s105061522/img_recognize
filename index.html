@@ -111,10 +111,6 @@
     const parsedText = (data?.ParsedResults?.[0]?.ParsedText || '').toUpperCase();
     ocrText.innerText = "📄 OCR 辨識文字：\n" + parsedText;
 
-    // 擷取姓名
-    const nameMatch = parsedText.match(/姓名[:：]?\s*([\u4e00-\u9fa5]{2,4})/);
-    ocrName = nameMatch ? nameMatch[1] : null;
-
     const taiwanIdRegex = /[A-Z][12]\d{8}/;
     const fuzzyIdRegex = /[A-Z][0-9A-Z]{9}/;
     const mrzRegex = /P<|[A-Z]{3}[0-9<]{10,}/;
