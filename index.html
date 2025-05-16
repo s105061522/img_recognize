@@ -2,7 +2,7 @@
 <html lang="zh-Hant">
 <head>
   <meta charset="UTF-8">
-  <title>自助入住人臉驗證（Face++ + OCR 驗證）</title>
+  <title>自助入住人臉驗證</title>
 </head>
 <body>
   <h2>自助入住驗證</h2>
@@ -27,6 +27,13 @@
   <pre id="roomInfo" style="white-space: pre-wrap; background: #fff3cd; padding: 8px; border-radius: 4px; color: #856404;"></pre>
 
 <script>
+  const FACEPP_API_KEY = 'UwDnueoQfGQldxP6e_SJQpZUJtFAs9YA';
+  const FACEPP_API_SECRET = 'ks9e_h3BkVfQ52pvc-FyWgdzcHUvmY0S';
+  const FACEPP_ENDPOINT = 'https://api-us.faceplusplus.com/facepp/v3/compare';
+  const OCR_SPACE_ENDPOINT = 'https://api.ocr.space/parse/image';
+  const OCR_SPACE_API_KEY = 'helloworld';
+  const ID_WRITE_URL = 'https://script.google.com/macros/s/AKfycbzjPK4G4Kgj0X5lLRDeY2EixBAOFuw58uhMTc6G8WAZyHwOmXKUUo_qnpzBjPFLw-tu/exec';
+
   const video = document.getElementById('video');
   const canvas = document.getElementById('canvas');
   const snapshot = document.getElementById('snapshot');
@@ -35,12 +42,6 @@
   const ocrDetails = document.getElementById('ocrDetails');
   const idPreview = document.getElementById('idPreview');
   const roomInfo = document.getElementById('roomInfo');
-
-  const FACEPP_API_KEY = 'UwDnueoQfGQldxP6e_SJQpZUJtFAs9YA';
-  const FACEPP_API_SECRET = 'ks9e_h3BkVfQ52pvc-FyWgdzcHUvmY0S';
-  const FACEPP_ENDPOINT = 'https://api-us.faceplusplus.com/facepp/v3/compare';
-  const OCR_SPACE_ENDPOINT = 'https://api.ocr.space/parse/image';
-  const OCR_SPACE_API_KEY = 'helloworld';
 
   function previewIdPhoto(event) {
     const file = event.target.files[0];
@@ -56,7 +57,7 @@
 
   async function initCamera() {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       video.srcObject = stream;
     } catch (error) {
       alert("無法啟用攝像頭：" + error.message);
@@ -106,8 +107,7 @@
     const response = await fetch(OCR_SPACE_ENDPOINT, { method: 'POST', body: ocrFormData });
     const data = await response.json();
 
-    const parsedTextRaw = data?.ParsedResults?.[0]?.ParsedText?.trim() || '';
-    const parsedText = parsedTextRaw.toUpperCase();
+    const parsedText = (data?.ParsedResults?.[0]?.ParsedText || '').toUpperCase();
     ocrText.innerText = "📄 OCR 辨識文字：\n" + parsedText;
 
     const taiwanIdRegex = /[A-Z][12]\d{8}/;
@@ -120,7 +120,6 @@
     const hasMrz = mrzRegex.test(parsedText);
     const keywordMatched = keywords.some(word => parsedText.includes(word));
     const fallback = parsedText.length >= 30 && /\d{2,}/.test(parsedText);
-
     const idMatch = parsedText.match(taiwanIdRegex);
 
     let debug = '';
@@ -129,12 +128,11 @@
     debug += hasMrz ? '✅ MRZ 格式命中\n' : '❌ MRZ 格式未命中\n';
     debug += keywordMatched ? '✅ 關鍵字命中\n' : '❌ 關鍵字未命中\n';
     debug += fallback ? '✅ fallback 條件成立\n' : '❌ fallback 條件未成立\n';
-
-    const finalResult = hasTaiwanId || hasMrz || keywordMatched || fallback || !!fuzzyMatch;
-    debug += finalResult ? '→ ✅ 判定為正式證件' : '→ ❌ 判定為非正式證件';
+    debug += (hasTaiwanId || hasMrz || keywordMatched || fallback || fuzzyMatch)
+      ? '→ ✅ 判定為正式證件' : '→ ❌ 判定為非正式證件';
 
     ocrDetails.innerText = debug;
-    return finalResult;
+    return hasTaiwanId ? idMatch[0] : null;
   }
 
   async function submitPhotos() {
@@ -159,8 +157,8 @@
       return;
     }
 
-    const isValidDoc = await checkIfValidDocument(resizedIdBlob);
-    if (!isValidDoc) {
+    const idNumber = await checkIfValidDocument(resizedIdBlob);
+    if (!idNumber) {
       result.innerText = "❌ 此照片無法識別為正式證件，請重新上傳。";
       return;
     }
@@ -168,17 +166,16 @@
     const formData = new FormData();
     formData.append('api_key', FACEPP_API_KEY);
     formData.append('api_secret', FACEPP_API_SECRET);
-    formData.append('image_file1', resizedIdBlob, 'id.jpg');
-    formData.append('image_file2', selfieBlob, 'selfie.jpg');
+    formData.append('image_file1', resizedIdBlob);
+    formData.append('image_file2', selfieBlob);
 
     try {
       const res = await fetch(FACEPP_ENDPOINT, { method: 'POST', body: formData });
       const json = await res.json();
       const similarity = json.confidence;
 
-      if (similarity !== undefined && similarity > 60) {
+      if (similarity && similarity > 60) {
         result.innerText = `✅ 驗證成功，相似度 ${similarity}`;
-
         const today = new Date().toISOString().split('T')[0];
         const usedRooms = JSON.parse(localStorage.getItem('usedRooms_' + today) || '[]');
         const room = [...Array(12).keys()].map(n => n + 1).find(r => !usedRooms.includes(r));
@@ -189,6 +186,31 @@
         usedRooms.push(room);
         localStorage.setItem('usedRooms_' + today, JSON.stringify(usedRooms));
         roomInfo.innerText = `房號：${room}\n入場密碼：8899`;
+
+        const payload = new URLSearchParams();
+        payload.append('data', [
+          '夜間入場',
+          '未知姓名',
+          phone,
+          '無',
+          today + ' 15:00',
+          today + ' 22:00',
+          idNumber
+        ].join(','));
+
+        const writeRes = await fetch(ID_WRITE_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: payload
+        });
+
+        const writeText = await writeRes.text();
+        if (writeText.includes('Success')) {
+          roomInfo.innerText += `\n✅ 身分證號已寫入`;
+        } else {
+          roomInfo.innerText += `\n❌ 寫入失敗：${writeText}`;
+        }
+
       } else {
         result.innerText = `❌ 驗證失敗，相似度 ${similarity}`;
       }
