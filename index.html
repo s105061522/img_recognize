@@ -11,6 +11,7 @@
     #step-container > .active { display: block; }
     button { padding: 10px 20px; font-size: 16px; }
     #result, #roomInfo { margin-top: 20px; font-size: 18px; font-weight: bold; }
+    pre { text-align: left; white-space: pre-wrap; background: #f3f3f3; padding: 8px; border-radius: 4px; max-width: 90%; margin: 10px auto; }
   </style>
 </head>
 <body>
@@ -45,6 +46,8 @@
     <h3>驗證結果</h3>
     <div id="result"></div>
     <div id="roomInfo"></div>
+    <pre id="ocrText"></pre>
+    <pre id="ocrDetails"></pre>
   </div>
 </div>
 
@@ -101,52 +104,98 @@ function dataURLtoBlob(dataURL) {
   return new Blob([ab], { type: mimeString });
 }
 
+async function checkIfValidDocument(imageBlob) {
+  const ocrText = document.getElementById('ocrText');
+  const ocrDetails = document.getElementById('ocrDetails');
+  const ocrFormData = new FormData();
+  ocrFormData.append('apikey', OCR_SPACE_API_KEY);
+  ocrFormData.append('language', 'eng');
+  ocrFormData.append('isOverlayRequired', false);
+  ocrFormData.append('file', imageBlob);
+
+  const response = await fetch(OCR_SPACE_ENDPOINT, {
+    method: 'POST',
+    body: ocrFormData
+  });
+  const data = await response.json();
+
+  const parsedTextRaw = data?.ParsedResults?.[0]?.ParsedText?.trim() || '';
+  const parsedText = parsedTextRaw.toUpperCase();
+  ocrText.innerText = "📄 OCR 辨識文字：\n" + parsedText;
+
+  const taiwanIdRegex = /[A-Z][12]\d{8}/;
+  const fuzzyIdRegex = /[A-Z][0-9A-Z]{9}/;
+  const mrzRegex = /P<|[A-Z]{3}[0-9<]{10,}/;
+  const keywords = ["REPUBLIC", "IDENTITY", "PASSPORT", "ROC", "TAIWAN", "MINISTRY", "ID", "NATIONAL", "CHINA"];
+
+  const hasTaiwanId = taiwanIdRegex.test(parsedText);
+  const fuzzyMatch = !hasTaiwanId && parsedText.match(fuzzyIdRegex);
+  const hasMrz = mrzRegex.test(parsedText);
+  const keywordMatched = keywords.some(word => parsedText.includes(word));
+  const fallback = parsedText.length >= 30 && /\d{2,}/.test(parsedText);
+
+  const idMatch = parsedText.match(taiwanIdRegex);
+
+  let debug = '';
+  debug += hasTaiwanId ? `✅ 偵測到身分證號：${idMatch[0]}\n` : '❌ 身分證號未命中\n';
+  if (!hasTaiwanId && fuzzyMatch) debug += `⚠️ 模糊命中（可能誤辨）：${fuzzyMatch[0]}\n`;
+  debug += hasMrz ? '✅ MRZ 格式命中\n' : '❌ MRZ 格式未命中\n';
+  debug += keywordMatched ? '✅ 關鍵字命中\n' : '❌ 關鍵字未命中\n';
+  debug += fallback ? '✅ fallback 條件成立\n' : '❌ fallback 條件未成立\n';
+
+  const finalResult = hasTaiwanId || hasMrz || keywordMatched || fallback || !!fuzzyMatch;
+  debug += finalResult ? '→ ✅ 判定為正式證件' : '→ ❌ 判定為非正式證件';
+
+  ocrDetails.innerText = debug;
+
+  return finalResult;
+}
+
 async function submitAll() {
   const phone = document.getElementById('phoneNumber').value.trim();
   const idDataURL = document.getElementById('idSnapshot').src;
   const selfieDataURL = document.getElementById('selfieSnapshot').src;
+  const result = document.getElementById('result');
+
   if (!phone || !idDataURL || !selfieDataURL) {
     alert("請完成所有步驟再送出");
     return;
   }
-  document.getElementById('result').textContent = '驗證中...';
+  result.textContent = '驗證中...';
 
   const idBlob = dataURLtoBlob(idDataURL);
   const selfieBlob = dataURLtoBlob(selfieDataURL);
 
-  const ocrForm = new FormData();
-  ocrForm.append('apikey', OCR_SPACE_API_KEY);
-  ocrForm.append('language', 'eng');
-  ocrForm.append('file', idBlob);
+  const isValidDoc = await checkIfValidDocument(idBlob);
+  if (!isValidDoc) {
+    result.innerText = "❌ 此照片無法識別為正式證件，請重新上傳。";
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append('api_key', FACEPP_API_KEY);
+  formData.append('api_secret', FACEPP_API_SECRET);
+  formData.append('image_file1', idBlob);
+  formData.append('image_file2', selfieBlob);
 
   try {
-    const ocrRes = await fetch(OCR_SPACE_ENDPOINT, { method: 'POST', body: ocrForm });
-    const ocrJson = await ocrRes.json();
-    const parsedText = ocrJson?.ParsedResults?.[0]?.ParsedText?.toUpperCase() || '';
-    const hasId = /[A-Z][12]\d{8}/.test(parsedText);
-    if (!hasId) {
-      document.getElementById('result').textContent = '❌ 無法辨識證件';
-      return;
-    }
-
-    const formData = new FormData();
-    formData.append('api_key', FACEPP_API_KEY);
-    formData.append('api_secret', FACEPP_API_SECRET);
-    formData.append('image_file1', idBlob);
-    formData.append('image_file2', selfieBlob);
-
     const faceRes = await fetch(FACEPP_ENDPOINT, { method: 'POST', body: formData });
     const faceJson = await faceRes.json();
     const sim = faceJson.confidence;
-    if (sim > 60) {
-      document.getElementById('result').textContent = `✅ 驗證成功，相似度 ${sim}`;
-      document.getElementById('roomInfo').innerHTML = `房號：<b>1</b><br>入場密碼：<b>8899</b>`;
-      nextStep(4);
+    if (sim !== undefined) {
+      if (sim > 60) {
+        result.innerText = `✅ 驗證成功，相似度 ${sim}`;
+        document.getElementById('roomInfo').innerHTML = `房號：<b>1</b><br>入場密碼：<b>8899</b>`;
+        nextStep(4);
+      } else {
+        result.innerText = `❌ 驗證失敗，相似度 ${sim}`;
+      }
     } else {
-      document.getElementById('result').textContent = `❌ 驗證失敗，相似度 ${sim}`;
+      result.innerText = "⚠️ 無法取得比對結果";
     }
   } catch (err) {
-    document.getElementById('result').textContent = '⚠️ 錯誤：' + err.message;
+    console.error("驗證過程錯誤：", err);
+    result.innerText = '⚠️ 錯誤：' + err.message;
   }
 }
 </script>
