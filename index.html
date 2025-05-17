@@ -9,7 +9,6 @@
     .step.active { display: block; }
     video, canvas, img { width: 320px; display: block; margin: 10px auto; }
     pre { white-space: pre-wrap; background: #f3f3f3; padding: 8px; border-radius: 4px; }
-    .error { color: red; font-weight: bold; }
   </style>
 </head>
 <body>
@@ -18,7 +17,6 @@
   <div id="step1" class="step active">
     <label for="phone">手機號碼：</label>
     <input type="tel" id="phone" placeholder="請輸入手機號碼"><br><br>
-    <p id="error1" class="error"></p>
     <button onclick="nextStep(2)">下一步</button>
   </div>
 
@@ -26,7 +24,6 @@
     <h2>上傳您的證件照片</h2>
     <input type="file" id="idPhoto" accept="image/*" onchange="previewIdPhoto(event)"><br><br>
     <img id="idPreview" src="" style="max-width: 320px; display: none; border: 1px solid #ccc;"><br>
-    <p id="error2" class="error"></p>
     <button onclick="prevStep(1)">上一步</button>
     <button onclick="nextStep(3)">下一步</button>
   </div>
@@ -37,18 +34,17 @@
     <button onclick="capturePhoto()">拍照</button><br><br>
     <canvas id="canvas" width="320" height="240" style="display:none;"></canvas>
     <img id="snapshot" src=""><br>
-    <p id="error3" class="error"></p>
     <button onclick="prevStep(2)">上一步</button>
     <button onclick="nextStep(4)">下一步</button>
   </div>
 
   <div id="step4" class="step">
+    <button onclick="prevStep(3)">上一步</button>
     <button onclick="submitPhotos()">開始驗證</button>
     <p id="result"></p>
     <pre id="ocrText"></pre>
     <pre id="ocrDetails" style="color: green;"></pre>
     <pre id="roomInfo" style="color: #856404;"></pre>
-    <button onclick="prevStep(3)">上一步</button>
   </div>
 
 <script>
@@ -60,7 +56,6 @@
   const ID_WRITE_URL = 'https://script.google.com/macros/s/AKfycbzjPK4G4Kgj0X5lLRDeY2EixBAOFuw58uhMTc6G8WAZyHwOmXKUUo_qnpzBjPFLw-tu/exec';
   const RESERVATION_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxcloKN6uq7sJ9-IrfMlecLdzDqrLSW-GXhVYl_m24i9nNv0t_oYsmwddelmsyLx8XkTg/exec';
 
-  let currentStep = 1;
   const video = document.getElementById('video');
   const canvas = document.getElementById('canvas');
   const snapshot = document.getElementById('snapshot');
@@ -70,135 +65,211 @@
   const idPreview = document.getElementById('idPreview');
   const roomInfo = document.getElementById('roomInfo');
 
-  function showStep(step) {
+  function prevStep(n) {
     for (let i = 1; i <= 4; i++) {
       document.getElementById('step' + i).classList.remove('active');
     }
-    document.getElementById('step' + step).classList.add('active');
-    currentStep = step;
-    if (step === 3) initCamera();
+    document.getElementById('step' + n).classList.add('active');
   }
 
-  function nextStep(step) {
-    if (step === 2 && !document.getElementById('phone').value.trim()) {
-      document.getElementById('error1').innerText = '請輸入手機號碼'; return;
-    } else if (step === 3 && !document.getElementById('idPhoto').files[0]) {
-      document.getElementById('error2').innerText = '請上傳證件照片'; return;
-    } else if (step === 4 && !document.getElementById('snapshot').src) {
-      document.getElementById('error3').innerText = '請拍攝自拍照片'; return;
+  function nextStep(n) {
+    for (let i = 1; i <= 4; i++) {
+      document.getElementById('step' + i).classList.remove('active');
     }
-    ['error1', 'error2', 'error3'].forEach(id => document.getElementById(id).innerText = '');
-    showStep(step);
+    document.getElementById('step' + n).classList.add('active');
+    if (n === 3) initCamera();
   }
 
-  function prevStep(step) {
-    showStep(step);
+  async function getReservationByPhone(phone) {
+    try {
+      const res = await fetch(RESERVATION_SHEET_URL);
+      const data = await res.json();
+      const normalized = phone.startsWith('0') ? phone : '0' + phone;
+      return data.find(entry =>
+        entry['電話'] === normalized || entry['電話'] === "'" + normalized
+      ) || null;
+    } catch (err) {
+      console.error("❌ 查詢預約名單失敗:", err);
+      return null;
+    }
   }
 
   function previewIdPhoto(event) {
     const file = event.target.files[0];
     if (file) {
       const reader = new FileReader();
-      reader.onload = function (e) {
+      reader.onload = e => {
         idPreview.src = e.target.result;
         idPreview.style.display = 'block';
-        nextStep(3);
       };
       reader.readAsDataURL(file);
+    }
+  }
+
+  async function initCamera() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      video.srcObject = stream;
+    } catch (error) {
+      alert("無法啟用攝像頭：" + error.message);
     }
   }
 
   function capturePhoto() {
     const ctx = canvas.getContext('2d');
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const dataURL = canvas.toDataURL('image/png');
+    const dataURL = canvas.toDataURL('image/jpeg', 0.9);
     snapshot.src = dataURL;
+    snapshot.style.display = 'block';
     canvas.style.display = 'block';
-    nextStep(4);
   }
 
-  async function initCamera() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
-      video.srcObject = stream;
-    } catch (err) {
-      alert("無法啟用相機：" + err.message);
-    }
+  function resizeImage(file, maxSize = 1000) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const reader = new FileReader();
+      reader.onload = e => img.src = e.target.result;
+      img.onload = () => {
+        const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width * scale;
+        canvas.height = img.height * scale;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob(blob => {
+          const file = new File([blob], 'resized.jpg', { type: 'image/jpeg' });
+          resolve(file);
+        }, 'image/jpeg', 0.8);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function checkIfValidDocument(imageBlob) {
+    const ocrFormData = new FormData();
+    ocrFormData.append('apikey', OCR_SPACE_API_KEY);
+    ocrFormData.append('language', 'eng');
+    ocrFormData.append('isOverlayRequired', false);
+    ocrFormData.append('file', imageBlob);
+
+    const response = await fetch(OCR_SPACE_ENDPOINT, { method: 'POST', body: ocrFormData });
+    const data = await response.json();
+    const parsedText = (data?.ParsedResults?.[0]?.ParsedText || '').toUpperCase();
+    ocrText.innerText = "📄 OCR 辨識文字：\n" + parsedText;
+
+    const taiwanIdRegex = /[A-Z][12]\d{8}/;
+    const fuzzyIdRegex = /[A-Z][0-9A-Z]{9}/;
+    const mrzRegex = /P<|[A-Z]{3}[0-9<]{10,}/;
+    const keywords = ["REPUBLIC", "IDENTITY", "PASSPORT", "ROC", "TAIWAN", "MINISTRY", "ID", "NATIONAL", "CHINA"];
+
+    const hasTaiwanId = taiwanIdRegex.test(parsedText);
+    const fuzzyMatch = !hasTaiwanId && parsedText.match(fuzzyIdRegex);
+    const hasMrz = mrzRegex.test(parsedText);
+    const keywordMatched = keywords.some(word => parsedText.includes(word));
+    const fallback = parsedText.length >= 30 && /\d{2,}/.test(parsedText);
+    const idMatch = parsedText.match(taiwanIdRegex);
+
+    let debug = '';
+    debug += hasTaiwanId ? `✅ 偵測到身分證號：${idMatch[0]}\n` : '❌ 身分證號未命中\n';
+    if (!hasTaiwanId && fuzzyMatch) debug += `⚠️ 模糊命中（可能誤辨）：${fuzzyMatch[0]}\n`;
+    debug += hasMrz ? '✅ MRZ 格式命中\n' : '❌ MRZ 格式未命中\n';
+    debug += keywordMatched ? '✅ 關鍵字命中\n' : '❌ 關鍵字未命中\n';
+    debug += fallback ? '✅ fallback 條件成立\n' : '❌ fallback 條件未成立\n';
+    debug += (hasTaiwanId || hasMrz || keywordMatched || fallback || fuzzyMatch)
+      ? '→ ✅ 判定為正式證件' : '→ ❌ 判定為非正式證件';
+
+    ocrDetails.innerText = debug;
+    return hasTaiwanId ? idMatch[0] : null;
   }
 
   async function submitPhotos() {
     const idFile = document.getElementById('idPhoto').files[0];
     const phone = document.getElementById('phone').value.trim();
-    if (!idFile || !phone) { alert("請上傳證件並填寫手機號碼"); return; }
+    if (!idFile || !phone) {
+      alert("請上傳證件並填寫手機號碼");
+      return;
+    }
 
-    const resv = await fetch(RESERVATION_SHEET_URL).then(r => r.json());
-    const match = resv.find(r => r['電話'] === phone || r['電話'] === '0' + phone || r['電話'] === "'" + phone);
-    if (!match) { result.innerText = "❌ 查無預約"; return; }
+    const reservation = await getReservationByPhone(phone);
+    if (!reservation) {
+      result.innerText = "❌ 查無此手機號碼的預約紀錄，請確認後再試。";
+      return;
+    }
 
-    result.innerText = "⏳ 驗證中..."; ocrText.innerText = ''; ocrDetails.innerText = ''; roomInfo.innerText = '';
+    result.innerText = "⏳ 驗證中，請稍候...";
+    ocrText.innerText = '';
+    ocrDetails.innerText = '';
+    roomInfo.innerText = '';
+
+    const selfieDataUrl = canvas.toDataURL('image/jpeg', 0.9);
+    const selfieBlob = await (await fetch(selfieDataUrl)).blob();
     const resizedIdBlob = await resizeImage(idFile);
-    if (resizedIdBlob.size > 1024000) return result.innerText = "❌ 圖片過大";
-    const selfieBlob = await (await fetch(snapshot.src)).blob();
+
+    if (resizedIdBlob.size > 1024000) {
+      result.innerText = "❌ 圖片過大，請重新拍攝。";
+      return;
+    }
+
     const idNumber = await checkIfValidDocument(resizedIdBlob);
-    if (!idNumber) return result.innerText = "❌ 證件不合法";
+    if (!idNumber) {
+      result.innerText = "❌ 此照片無法識別為正式證件，請重新上傳。";
+      return;
+    }
 
     const formData = new FormData();
     formData.append('api_key', FACEPP_API_KEY);
     formData.append('api_secret', FACEPP_API_SECRET);
     formData.append('image_file1', resizedIdBlob);
     formData.append('image_file2', selfieBlob);
-    const faceRes = await fetch(FACEPP_ENDPOINT, { method: 'POST', body: formData });
-    const sim = (await faceRes.json()).confidence;
-    if (!sim || sim < 60) return result.innerText = `❌ 驗證失敗，相似度 ${sim}`;
 
-    result.innerText = `✅ 驗證成功，相似度 ${sim}`;
-    const today = new Date().toISOString().split('T')[0];
-    const usedRooms = JSON.parse(localStorage.getItem('usedRooms_' + today) || '[]');
-    const room = [...Array(12).keys()].map(n => n + 1).find(r => !usedRooms.includes(r));
-    if (!room) return roomInfo.innerText = '❌ 今日房間已滿';
-    usedRooms.push(room);
-    localStorage.setItem('usedRooms_' + today, JSON.stringify(usedRooms));
-    roomInfo.innerText = `房號：${room}\n入場密碼：8899`;
+    try {
+      const res = await fetch(FACEPP_ENDPOINT, { method: 'POST', body: formData });
+      const json = await res.json();
+      const similarity = json.confidence;
 
-    const payload = new URLSearchParams();
-    payload.append('data', [match['商品名稱'], match['姓名'], match['電話'], match['Email'], match['開始時間'], match['結束時間'], idNumber].join(','));
-    const writeRes = await fetch(ID_WRITE_URL, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: payload });
-    roomInfo.innerText += (await writeRes.text()).includes('Success') ? '\n✅ 寫入成功' : '\n❌ 寫入失敗';
-  }
+      if (similarity && similarity > 60) {
+        result.innerText = `✅ 驗證成功，相似度 ${similarity}`;
 
-  async function checkIfValidDocument(blob) {
-    const fd = new FormData();
-    fd.append('apikey', OCR_SPACE_API_KEY);
-    fd.append('language', 'eng');
-    fd.append('isOverlayRequired', false);
-    fd.append('file', blob);
-    const data = await fetch(OCR_SPACE_ENDPOINT, { method: 'POST', body: fd }).then(r => r.json());
-    const text = (data?.ParsedResults?.[0]?.ParsedText || '').toUpperCase();
-    ocrText.innerText = "📄 OCR 辨識文字：\n" + text;
-    const id = /[A-Z][12]\d{8}/.exec(text);
-    let d = id ? `✅ 偵測身分證：${id[0]}\n` : '❌ 無身分證\n';
-    d += /P<|[A-Z]{3}[0-9<]{10,}/.test(text) ? '✅ MRZ 命中\n' : '❌ MRZ 未命中\n';
-    d += /(REPUBLIC|TAIWAN|ID|NATIONAL|ROC)/.test(text) ? '✅ 關鍵字命中\n' : '❌ 關鍵字未命中\n';
-    ocrDetails.innerText = d;
-    return id ? id[0] : null;
-  }
+        const today = new Date().toISOString().split('T')[0];
+        const usedRooms = JSON.parse(localStorage.getItem('usedRooms_' + today) || '[]');
+        const room = [...Array(12).keys()].map(n => n + 1).find(r => !usedRooms.includes(r));
+        if (!room) {
+          roomInfo.innerText = '❌ 今日房間已滿';
+          return;
+        }
+        usedRooms.push(room);
+        localStorage.setItem('usedRooms_' + today, JSON.stringify(usedRooms));
+        roomInfo.innerText = `房號：${room}\n入場密碼：8899`;
 
-  function resizeImage(file, max = 1000) {
-    return new Promise((res, rej) => {
-      const img = new Image();
-      const reader = new FileReader();
-      reader.onload = e => img.src = e.target.result;
-      img.onload = () => {
-        const scale = Math.min(1, max / Math.max(img.width, img.height));
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width * scale;
-        canvas.height = img.height * scale;
-        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-        canvas.toBlob(blob => res(new File([blob], 'resized.jpg', { type: 'image/jpeg' })), 'image/jpeg', 0.8);
-      };
-      reader.onerror = rej;
-      reader.readAsDataURL(file);
-    });
+        const payload = new URLSearchParams();
+        payload.append('data', [
+          reservation['商品名稱'] || '',
+          reservation['姓名'] || '',
+          reservation['電話'] || '',
+          reservation['Email'] || '',
+          reservation['開始時間'] || '',
+          reservation['結束時間'] || '',
+          idNumber
+        ].join(','));
+
+        const writeRes = await fetch(ID_WRITE_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: payload
+        });
+
+        const writeText = await writeRes.text();
+        roomInfo.innerText += writeText.includes('Success')
+          ? `\n✅ 身分證號已寫入`
+          : `\n❌ 寫入失敗：${writeText}`;
+      } else {
+        result.innerText = `❌ 驗證失敗，相似度 ${similarity}`;
+      }
+    } catch (e) {
+      console.error("提交錯誤：", e);
+      result.innerText = "⚠️ 發生錯誤：" + e.message;
+    }
   }
 </script>
 </body>
