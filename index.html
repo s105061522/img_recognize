@@ -210,7 +210,10 @@
   }
 
   async function submitPhotos() {
-    const idFile = document.getElementById('idPhoto').files[0];
+    const idCanvas = document.getElementById('idCanvas');
+    const idDataUrl = idCanvas.toDataURL('image/jpeg', 0.9);
+    const idBlob = await (await fetch(idDataUrl)).blob();
+
     const phone = document.getElementById('phone').value.trim();
     if (!idFile || !phone) {
       alert("請上傳證件並填寫手機號碼");
@@ -230,7 +233,7 @@
 
     const selfieDataUrl = canvas.toDataURL('image/jpeg', 0.9);
     const selfieBlob = await (await fetch(selfieDataUrl)).blob();
-    const resizedIdBlob = await resizeImage(idFile);
+    const resizedIdBlob = await resizeImage(idBlob);
 
     if (resizedIdBlob.size > 1024000) {
       result.innerText = "❌ 圖片過大，請重新拍攝。";
