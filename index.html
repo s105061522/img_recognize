@@ -21,8 +21,10 @@
   </div>
 
   <div id="step2" class="step">
-    <h2>上傳您的證件照片</h2>
-    <input type="file" id="idPhoto" accept="image/*" onchange="previewIdPhoto(event)"><br><br>
+    <h2>拍攝您的證件照片</h2>
+    <video id="idVideo" width="320" height="240" autoplay playsinline muted></video><br>
+    <button onclick="captureIdPhoto()">拍照</button><br><br>
+    <canvas id="idCanvas" width="320" height="240" style="display:none;"></canvas>
     <img id="idPreview" src="" style="max-width: 320px; display: none; border: 1px solid #ccc;"><br>
     <button onclick="prevStep(1)">上一步</button>
     <button onclick="nextStep(3)">下一步</button>
@@ -77,7 +79,31 @@
       document.getElementById('step' + i).classList.remove('active');
     }
     document.getElementById('step' + n).classList.add('active');
-    if (n === 3) initCamera();
+  
+    if (n === 2) initIdCamera(); // 啟用主鏡頭
+    if (n === 3) initCamera();   // 自拍用前鏡頭
+  }
+  
+  async function initIdCamera() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { exact: "environment" } } // 後鏡頭
+      });
+      document.getElementById('idVideo').srcObject = stream;
+    } catch (error) {
+      alert("無法啟用主鏡頭（後鏡頭）：\n" + error.message);
+    }
+  }
+
+  function captureIdPhoto() {
+    const video = document.getElementById('idVideo');
+    const canvas = document.getElementById('idCanvas');
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const dataURL = canvas.toDataURL('image/jpeg', 0.9);
+    document.getElementById('idPreview').src = dataURL;
+    document.getElementById('idPreview').style.display = 'block';
+    canvas.style.display = 'block';
   }
 
   async function getReservationByPhone(phone) {
