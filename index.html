@@ -21,13 +21,14 @@
   </div>
 
   <div id="step2" class="step">
-    <h2>拍攝身分證</h2>
-    <video id="externalVideo" autoplay playsinline></video><br>
-    <button onclick="prevStep(1)">上一步</button>
-    <button onclick="captureIdPhoto()">拍照並進入下一步</button>
+    <h2>拍攝您的證件照片</h2>
+    <video id="idVideo" width="320" height="240" autoplay playsinline muted></video><br>
+    <button onclick="captureIdPhoto()">拍照</button><br><br>
     <canvas id="idCanvas" width="320" height="240" style="display:none;"></canvas>
+    <img id="idPreview" src="" style="display:none; border:1px solid #ccc;"><br>
+    <button onclick="prevStep(1)">上一步</button>
+    <button onclick="nextStep(3)">下一步</button>
   </div>
-
 
   <div id="step3" class="step">
     <h2>拍攝現場自拍照</h2>
@@ -57,14 +58,14 @@
   const ID_WRITE_URL = 'https://script.google.com/macros/s/AKfycbzjPK4G4Kgj0X5lLRDeY2EixBAOFuw58uhMTc6G8WAZyHwOmXKUUo_qnpzBjPFLw-tu/exec';
   const RESERVATION_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxcloKN6uq7sJ9-IrfMlecLdzDqrLSW-GXhVYl_m24i9nNv0t_oYsmwddelmsyLx8XkTg/exec';
 
-function nextStep(n) {
-  for (let i = 1; i <= 4; i++) {
-    document.getElementById('step' + i).classList.remove('active');
+  function nextStep(n) {
+    for (let i = 1; i <= 4; i++) {
+      document.getElementById('step' + i).classList.remove('active');
+    }
+    document.getElementById('step' + n).classList.add('active');
+    if (n === 2) initIdCamera();
+    if (n === 3) initCamera();
   }
-  document.getElementById('step' + n).classList.add('active');
-  if (n === 2) initExternalCamera();  // 新增：初始化外接鏡頭
-  if (n === 3) initSelfieCamera();    // 新增：初始化前鏡頭
-}
 
   function prevStep(n) {
     nextStep(n);
@@ -79,77 +80,6 @@ function nextStep(n) {
     }
   }
 
-  // 初始化外接鏡頭（身分證）
-  async function initExternalCamera() {
-    try {
-      // 先開一次權限才能取得 label
-      await navigator.mediaDevices.getUserMedia({ video: true });
-  
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const videoDevices = devices.filter(d => d.kind === 'videoinput');
-  
-      if (videoDevices.length === 0) {
-        alert("⚠️ 找不到攝影機");
-        return;
-      }
-  
-      // 產生下拉選單供手動切換（只產生一次）
-      let select = document.getElementById('cameraSelect');
-      if (!select) {
-        select = document.createElement('select');
-        select.id = 'cameraSelect';
-        select.style.display = 'block';
-        select.style.margin = '10px auto';
-        document.getElementById('step2').insertBefore(select, document.getElementById('externalVideo'));
-  
-        select.addEventListener('change', () => {
-          const selectedDeviceId = select.value;
-          startCameraWithDeviceId(selectedDeviceId);
-        });
-      }
-  
-      select.innerHTML = '';
-      videoDevices.forEach(device => {
-        const option = document.createElement('option');
-        option.value = device.deviceId;
-        option.textContent = device.label || `Camera ${select.length + 1}`;
-        select.appendChild(option);
-      });
-  
-      // 預設選擇最後一支（可能是 USB webcam）
-      select.selectedIndex = videoDevices.length - 1;
-      startCameraWithDeviceId(select.value);
-    } catch (err) {
-      alert("❌ 鏡頭初始化失敗：" + err.message);
-      console.error(err);
-    }
-  }
-  
-  async function startCameraWithDeviceId(deviceId) {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { deviceId: { exact: deviceId } }
-      });
-      document.getElementById('externalVideo').srcObject = stream;
-    } catch (err) {
-      alert("❌ 開啟指定鏡頭失敗：" + err.message);
-      console.error(err);
-    }
-  }
-
-  // 初始化自拍鏡頭（前鏡頭）
-  async function initSelfieCamera() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user" }
-      });
-      document.getElementById('video').srcObject = stream;
-    } catch (err) {
-      alert("❌ 開啟前鏡頭失敗：" + err.message);
-      console.error(err);
-    }
-  }
-
   async function initCamera() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
@@ -160,15 +90,13 @@ function nextStep(n) {
   }
 
   function captureIdPhoto() {
-    const video = document.getElementById('externalVideo');
+    const video = document.getElementById('idVideo');
     const canvas = document.getElementById('idCanvas');
-    const context = canvas.getContext('2d');
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-  
-    // 可轉成圖片資料用於上傳
-    const imageData = canvas.toDataURL('image/png');
-    console.log('身分證影像 Base64：', imageData);
-    // 進入下一步...
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const dataURL = canvas.toDataURL('image/jpeg', 0.9);
+    document.getElementById('idPreview').src = dataURL;
+    document.getElementById('idPreview').style.display = 'block';
   }
 
   function capturePhoto() {
@@ -310,36 +238,6 @@ function nextStep(n) {
       document.getElementById('result').innerText = "⚠️ 驗證過程錯誤：" + e.message;
     }
   }
-let externalCameraId = null;
-
-// 抓取可用的攝影機裝置清單
-async function loadCameras() {
-  const devices = await navigator.mediaDevices.enumerateDevices();
-  const videoDevices = devices.filter(device => device.kind === 'videoinput');
-
-  if (videoDevices.length > 1) {
-    // 假設最後一個是外接鏡頭
-    externalCameraId = videoDevices[videoDevices.length - 1].deviceId;
-  } else if (videoDevices.length === 1) {
-    externalCameraId = videoDevices[0].deviceId;
-  }
-}
-
-// 啟用外接鏡頭
-async function startExternalCamera(videoElementId) {
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { deviceId: externalCameraId ? { exact: externalCameraId } : undefined }
-    });
-    const videoElement = document.getElementById(videoElementId);
-    videoElement.srcObject = stream;
-  } catch (err) {
-    console.error('無法啟用外接鏡頭', err);
-  }
-}
-
-window.addEventListener('load', loadCameras);
-
 </script>
 </body>
 </html>
