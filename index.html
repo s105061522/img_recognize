@@ -23,7 +23,7 @@
   <div id="step2" class="step">
     <h2>拍攝身分證</h2>
     <video id="externalVideo" autoplay playsinline></video><br>
-    <button onclick="startExternalCamera('externalVideo')">啟用外接鏡頭</button>
+    <button onclick="prevStep(2)">上一步</button>
     <button onclick="captureIdPhoto()">拍照並進入下一步</button>
     <canvas id="idCanvas" width="320" height="240" style="display:none;"></canvas>
   </div>
@@ -57,14 +57,14 @@
   const ID_WRITE_URL = 'https://script.google.com/macros/s/AKfycbzjPK4G4Kgj0X5lLRDeY2EixBAOFuw58uhMTc6G8WAZyHwOmXKUUo_qnpzBjPFLw-tu/exec';
   const RESERVATION_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxcloKN6uq7sJ9-IrfMlecLdzDqrLSW-GXhVYl_m24i9nNv0t_oYsmwddelmsyLx8XkTg/exec';
 
-  function nextStep(n) {
-    for (let i = 1; i <= 4; i++) {
-      document.getElementById('step' + i).classList.remove('active');
-    }
-    document.getElementById('step' + n).classList.add('active');
-    if (n === 2) initIdCamera();
-    if (n === 3) initCamera();
+function nextStep(n) {
+  for (let i = 1; i <= 4; i++) {
+    document.getElementById('step' + i).classList.remove('active');
   }
+  document.getElementById('step' + n).classList.add('active');
+  if (n === 2) initExternalCamera();  // 新增：初始化外接鏡頭
+  if (n === 3) initSelfieCamera();    // 新增：初始化前鏡頭
+}
 
   function prevStep(n) {
     nextStep(n);
@@ -76,6 +76,45 @@
       document.getElementById('idVideo').srcObject = stream;
     } catch (err) {
       alert("❌ 開啟主鏡頭失敗：" + err.message);
+    }
+  }
+
+  // 初始化外接鏡頭（身分證）
+  async function initExternalCamera() {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter(d => d.kind === 'videoinput');
+  
+      // 嘗試尋找包含 "usb"、"hd"、"external" 的裝置名稱
+      const external = videoDevices.find(d =>
+        d.label.toLowerCase().includes("usb") ||
+        d.label.toLowerCase().includes("hd") ||
+        d.label.toLowerCase().includes("external")
+      );
+  
+      const externalDeviceId = external ? external.deviceId : videoDevices[videoDevices.length - 1].deviceId;
+  
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { deviceId: { exact: externalDeviceId } }
+      });
+  
+      document.getElementById('externalVideo').srcObject = stream;
+    } catch (err) {
+      alert("❌ 找不到外接鏡頭或開啟失敗：" + err.message);
+      console.error(err);
+    }
+  }
+
+  // 初始化自拍鏡頭（前鏡頭）
+  async function initSelfieCamera() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "user" }
+      });
+      document.getElementById('video').srcObject = stream;
+    } catch (err) {
+      alert("❌ 開啟前鏡頭失敗：" + err.message);
+      console.error(err);
     }
   }
 
