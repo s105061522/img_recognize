@@ -23,7 +23,7 @@
   <div id="step2" class="step">
     <h2>拍攝身分證</h2>
     <video id="externalVideo" autoplay playsinline></video><br>
-    <button onclick="prevStep(2)">上一步</button>
+    <button onclick="prevStep(1)">上一步</button>
     <button onclick="captureIdPhoto()">拍照並進入下一步</button>
     <canvas id="idCanvas" width="320" height="240" style="display:none;"></canvas>
   </div>
@@ -82,25 +82,57 @@ function nextStep(n) {
   // 初始化外接鏡頭（身分證）
   async function initExternalCamera() {
     try {
+      // 先開一次權限才能取得 label
+      await navigator.mediaDevices.getUserMedia({ video: true });
+  
       const devices = await navigator.mediaDevices.enumerateDevices();
       const videoDevices = devices.filter(d => d.kind === 'videoinput');
   
-      // 嘗試尋找包含 "usb"、"hd"、"external" 的裝置名稱
-      const external = videoDevices.find(d =>
-        d.label.toLowerCase().includes("usb") ||
-        d.label.toLowerCase().includes("hd") ||
-        d.label.toLowerCase().includes("external")
-      );
+      if (videoDevices.length === 0) {
+        alert("⚠️ 找不到攝影機");
+        return;
+      }
   
-      const externalDeviceId = external ? external.deviceId : videoDevices[videoDevices.length - 1].deviceId;
+      // 產生下拉選單供手動切換（只產生一次）
+      let select = document.getElementById('cameraSelect');
+      if (!select) {
+        select = document.createElement('select');
+        select.id = 'cameraSelect';
+        select.style.display = 'block';
+        select.style.margin = '10px auto';
+        document.getElementById('step2').insertBefore(select, document.getElementById('externalVideo'));
   
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { deviceId: { exact: externalDeviceId } }
+        select.addEventListener('change', () => {
+          const selectedDeviceId = select.value;
+          startCameraWithDeviceId(selectedDeviceId);
+        });
+      }
+  
+      select.innerHTML = '';
+      videoDevices.forEach(device => {
+        const option = document.createElement('option');
+        option.value = device.deviceId;
+        option.textContent = device.label || `Camera ${select.length + 1}`;
+        select.appendChild(option);
       });
   
+      // 預設選擇最後一支（可能是 USB webcam）
+      select.selectedIndex = videoDevices.length - 1;
+      startCameraWithDeviceId(select.value);
+    } catch (err) {
+      alert("❌ 鏡頭初始化失敗：" + err.message);
+      console.error(err);
+    }
+  }
+  
+  async function startCameraWithDeviceId(deviceId) {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { deviceId: { exact: deviceId } }
+      });
       document.getElementById('externalVideo').srcObject = stream;
     } catch (err) {
-      alert("❌ 找不到外接鏡頭或開啟失敗：" + err.message);
+      alert("❌ 開啟指定鏡頭失敗：" + err.message);
       console.error(err);
     }
   }
