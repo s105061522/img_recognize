@@ -92,14 +92,25 @@ async function initMainCamera(videoId) {
 
 async function initFrontCamera(videoId) {
   try {
-    await navigator.mediaDevices.getUserMedia({ video: true });
+    const tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
+    tempStream.getTracks().forEach(track => track.stop());
+
     const devices = await navigator.mediaDevices.enumerateDevices();
     const videoDevices = devices.filter(device => device.kind === 'videoinput');
-    const frontCamera = videoDevices.find(d => d.label.toLowerCase().includes('front')) || videoDevices[0];
+
+    const frontCamera = videoDevices.find(d => (d.label || '').toLowerCase().includes('front')) || videoDevices.find(d => d.deviceId) || videoDevices[0];
+    if (!frontCamera) throw new Error("找不到前鏡頭裝置");
+
     const stream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: frontCamera.deviceId } } });
     document.getElementById(videoId).srcObject = stream;
   } catch (err) {
-    alert("❌ 無法啟用前鏡頭：" + err.message);
+    console.warn("指定裝置啟動失敗，使用 facingMode 作為備援", err);
+    try {
+      const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+      document.getElementById(videoId).srcObject = fallbackStream;
+    } catch (fallbackErr) {
+      alert("❌ 無法啟用前鏡頭：" + fallbackErr.message);
+    }
   }
 }
 
