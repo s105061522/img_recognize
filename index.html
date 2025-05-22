@@ -61,13 +61,24 @@ const RESERVATION_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxcloKN6u
 function nextStep(n) {
   for (let i = 1; i <= 4; i++) document.getElementById('step' + i).classList.remove('active');
   document.getElementById('step' + n).classList.add('active');
-  if (n === 3) initMainCamera('idVideo');
-  if (n === 2) initFrontCamera('video');
+  if (n === 2) {
+    initMainCamera('idVideo');
+  } else if (n === 3) {
+    stopStream(idStream, 'idVideo');
+    initFrontCamera('video');
+  }
 }
 function prevStep(n) { nextStep(n); }
 
 let idStream = null;
 let selfieStream = null;
+
+function stopStream(stream, videoId) {
+  if (stream) {
+    stream.getTracks().forEach(track => track.stop());
+    document.getElementById(videoId).srcObject = null;
+  }
+}
 
 async function initMainCamera(videoId) {
   try {
@@ -114,90 +125,6 @@ function capturePhoto() {
   ctx.drawImage(document.getElementById('video'), 0, 0, 320, 240);
   const dataURL = document.getElementById('canvas').toDataURL('image/jpeg', 0.9);
   document.getElementById('snapshot').src = dataURL;
-}
-
-async function submitPhotos() {
-  console.log("👉 submitPhotos 被呼叫了");
-
-  const idCanvas = document.getElementById('idCanvas');
-  const idDataUrl = idCanvas.toDataURL('image/jpeg', 0.9);
-  const idBlob = await (await fetch(idDataUrl)).blob();
-
-  const selfieDataUrl = document.getElementById('canvas').toDataURL('image/jpeg', 0.9);
-  const selfieBlob = await (await fetch(selfieDataUrl)).blob();
-
-  const phone = document.getElementById('phone').value.trim();
-  if (!idBlob || !selfieBlob || !phone) {
-    alert("請先完成所有拍照與輸入手機號碼");
-    return;
-  }
-
-  const reservation = await getReservationByPhone(phone);
-  if (!reservation) {
-    document.getElementById('result').innerText = "❌ 查無預約";
-    return;
-  }
-
-  document.getElementById('result').innerText = "⏳ 驗證中...";
-  const resizedId = await resizeImage(idBlob);
-  const idNumber = await checkIfValidDocument(resizedId);
-  if (!idNumber) {
-    document.getElementById('result').innerText = "❌ 身分證識別失敗";
-    return;
-  }
-
-  const formData = new FormData();
-  formData.append('api_key', FACEPP_API_KEY);
-  formData.append('api_secret', FACEPP_API_SECRET);
-  formData.append('image_file1', resizedId);
-  formData.append('image_file2', selfieBlob);
-
-  try {
-    const res = await fetch(FACEPP_ENDPOINT, { method: 'POST', body: formData });
-    const json = await res.json();
-    const similarity = json.confidence;
-
-    if (similarity && similarity > 60) {
-      document.getElementById('result').innerText = `✅ 相似度 ${similarity}`;
-      const today = new Date().toISOString().split('T')[0];
-      const usedRooms = JSON.parse(localStorage.getItem('usedRooms_' + today) || '[]');
-      const room = [...Array(12).keys()].map(i => i + 1).find(r => !usedRooms.includes(r));
-      if (!room) return document.getElementById('roomInfo').innerText = "❌ 房間已滿";
-      usedRooms.push(room);
-      localStorage.setItem('usedRooms_' + today, JSON.stringify(usedRooms));
-      document.getElementById('roomInfo').innerText = `房號：${room}
-入場密碼：8899`;
-
-      const payload = new URLSearchParams();
-      payload.append('data', [
-        reservation['商品名稱'] || '',
-        reservation['姓名'] || '',
-        reservation['電話'] || '',
-        reservation['Email'] || '',
-        reservation['開始時間'] || '',
-        reservation['結束時間'] || '',
-        idNumber
-      ].join(','));
-
-      const writeRes = await fetch(ID_WRITE_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: payload
-      });
-
-      const writeText = await writeRes.text();
-      document.getElementById('roomInfo').innerText += writeText.includes('Success')
-        ? `
-✅ 身分證號已寫入`
-        : `
-❌ 寫入失敗：${writeText}`;
-    } else {
-      document.getElementById('result').innerText = `❌ 驗證失敗，相似度 ${similarity}`;
-    }
-  } catch (e) {
-    console.error(e);
-    document.getElementById('result').innerText = "⚠️ 驗證過程錯誤：" + e.message;
-  }
 }
 </script>
 </body>
