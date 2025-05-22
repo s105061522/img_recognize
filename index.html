@@ -161,56 +161,23 @@ async function resizeImage(blob, maxSize = 1000) {
 }
 
 async function checkIfValidDocument(imageBlob) {
-  const ocrFormData = new FormData();
-  ocrFormData.append('apikey', OCR_SPACE_API_KEY);
-  ocrFormData.append('language', 'eng');
-  ocrFormData.append('isOverlayRequired', false);
-  ocrFormData.append('file', imageBlob);
+  const formData = new FormData();
+  formData.append('apikey', OCR_SPACE_API_KEY);
+  formData.append('language', 'eng');
+  formData.append('isOverlayRequired', false);
+  formData.append('file', imageBlob);
+  const res = await fetch(OCR_SPACE_ENDPOINT, { method: 'POST', body: formData });
+  const data = await res.json();
+  const text = (data?.ParsedResults?.[0]?.ParsedText || '').toUpperCase();
+  ocrText.innerText = "📄 OCR 辨識文字：\n" + text;
 
-  const response = await fetch(OCR_SPACE_ENDPOINT, {
-    method: 'POST',
-    body: ocrFormData
-  });
-  const data = await response.json();
-
-  console.log("🔍 OCR 回傳完整內容：", data);
-  console.log("📦 上傳圖像大小：", imageBlob.size, "bytes");
-
-  const parsedTextRaw = data?.ParsedResults?.[0]?.ParsedText?.trim() || '';
-  const parsedText = parsedTextRaw.toUpperCase();
-  ocrText.innerText = "📄 OCR 辨識文字：\n" + parsedText;
-
-  const taiwanIdRegex = /[A-Z][12]\d{8}/;
-  const fuzzyIdRegex = /[A-Z][0-9A-Z]{9}/;
-  const mrzRegex = /P<|[A-Z]{3}[0-9<]{10,}/;
-  const keywords = ["REPUBLIC", "IDENTITY", "PASSPORT", "ROC", "TAIWAN", "MINISTRY", "ID", "NATIONAL", "CHINA"];
-
-  const hasTaiwanId = taiwanIdRegex.test(parsedText);
-  const fuzzyMatch = !hasTaiwanId && parsedText.match(fuzzyIdRegex);
-  const hasMrz = mrzRegex.test(parsedText);
-  const keywordMatched = keywords.some(word => parsedText.includes(word));
-  const fallback = parsedText.length >= 30 && /\d{2,}/.test(parsedText);
-
-  const idMatch = parsedText.match(taiwanIdRegex);
-
-  let debug = '';
-  debug += hasTaiwanId ? `✅ 偵測到身分證號：${idMatch[0]}\n` : '❌ 身分證號未命中\n';
-  if (!hasTaiwanId && fuzzyMatch) {
-    debug += `⚠️ 模糊命中（可能誤辨）：${fuzzyMatch[0]}\n`;
-  }
-  debug += hasMrz ? '✅ MRZ 格式命中\n' : '❌ MRZ 格式未命中\n';
-  debug += keywordMatched ? '✅ 關鍵字命中\n' : '❌ 關鍵字未命中\n';
-  debug += fallback ? '✅ fallback 條件成立\n' : '❌ fallback 條件未成立\n';
-
-  const finalResult = hasTaiwanId || hasMrz || keywordMatched || fallback || !!fuzzyMatch;
-  debug += finalResult ? '→ ✅ 判定為正式證件' : '→ ❌ 判定為非正式證件';
-
+  const idMatch = text.match(/[A-Z][12]\d{8}/);
+  const debug = [
+    idMatch ? `✅ 身分證號：${idMatch[0]}` : '❌ 無效身分證號',
+    text.includes("TAIWAN") ? '✅ 含關鍵字' : '❌ 未含關鍵字'
+  ].join('\n');
   ocrDetails.innerText = debug;
-
-  return {
-    isValid: finalResult,
-    idNumber: idMatch ? idMatch[0] : (fuzzyMatch ? fuzzyMatch[0] : '')
-  };
+  return idMatch ? idMatch[0] : null;
 }
 
 async function getReservationByPhone(phone) {
