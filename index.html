@@ -283,7 +283,7 @@ async function submitPhotos() {
         usedRooms.push(room);
         localStorage.setItem('usedRooms_' + today, JSON.stringify(usedRooms));
         document.getElementById('roomInfo').innerText = `房號：${room}\n入場密碼：8899`;
-
+    
         const payload = new URLSearchParams();
         payload.append('data', [
           reservation['商品名稱'] || '',
@@ -294,20 +294,20 @@ async function submitPhotos() {
           reservation['結束時間'] || '',
           idNumber
         ].join(','));
-
-        const writeRes = await fetch(ID_WRITE_URL, {
+    
+        const writeRes = await fetch('https://script.google.com/macros/s/AKfycbzjPK4G4Kgj0X5lLRDeY2EixBAOFuw58uhMTc6G8WAZyHwOmXKUUo_qnpzBjPFLw-tu/exec', {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: payload
         });
-
+    
         const writeText = await writeRes.text();
         document.getElementById('roomInfo').innerText += writeText.includes('Success')
           ? `\n✅ 身分證號已寫入`
           : `\n❌ 寫入失敗：${writeText}`;
-
-    } else {
-      result.innerText = "❌ 錯誤：" + (json.error_message || "無法比對");
+      } else {
+        document.getElementById('result').innerText = `❌ 驗證失敗，相似度 ${similarity}`;
+      }
     }
   } catch (e) {
     console.error("提交錯誤：", e);
