@@ -21,19 +21,21 @@
   </div>
 
   <div id="step2" class="step">
-    <h2>拍攝您的證件照片</h2>
-    <video id="idVideo" width="320" height="240" autoplay playsinline muted></video><br>
-    <button onclick="captureIdPhoto()">拍照</button><br><br>
+    <h2>拍攝身分證</h2>
+    <video id="externalVideo" autoplay playsinline></video><br>
+    <select id="cameraSelect" style="display:block; margin: 10px auto;"></select>
+    <button onclick="capturePhoto()">拍照</button>
     <canvas id="idCanvas" width="320" height="240" style="display:none;"></canvas>
-    <img id="idPreview" src="" style="display:none; border:1px solid #ccc;"><br>
+    <img id="idPreview" src="" style="display:none;">
     <button onclick="prevStep(1)">上一步</button>
     <button onclick="nextStep(3)">下一步</button>
   </div>
 
   <div id="step3" class="step">
     <h2>拍攝現場自拍照</h2>
-    <video id="video" width="320" height="240" autoplay playsinline muted></video><br>
-    <button onclick="capturePhoto()">拍照</button><br><br>
+    <video id="video" autoplay playsinline muted></video><br>
+    <select id="cameraSelect2" style="display:block; margin: 10px auto;"></select>
+    <button onclick="captureIDPhoto()">拍照</button><br><br>
     <canvas id="canvas" width="320" height="240" style="display:none;"></canvas>
     <img id="snapshot" src=""><br>
     <button onclick="prevStep(2)">上一步</button>
@@ -50,194 +52,128 @@
   </div>
 
 <script>
-  const FACEPP_API_KEY = 'UwDnueoQfGQldxP6e_SJQpZUJtFAs9YA';
-  const FACEPP_API_SECRET = 'ks9e_h3BkVfQ52pvc-FyWgdzcHUvmY0S';
-  const FACEPP_ENDPOINT = 'https://api-us.faceplusplus.com/facepp/v3/compare';
-  const OCR_SPACE_ENDPOINT = 'https://api.ocr.space/parse/image';
-  const OCR_SPACE_API_KEY = 'helloworld';
-  const ID_WRITE_URL = 'https://script.google.com/macros/s/AKfycbzjPK4G4Kgj0X5lLRDeY2EixBAOFuw58uhMTc6G8WAZyHwOmXKUUo_qnpzBjPFLw-tu/exec';
-  const RESERVATION_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxcloKN6uq7sJ9-IrfMlecLdzDqrLSW-GXhVYl_m24i9nNv0t_oYsmwddelmsyLx8XkTg/exec';
+const FACEPP_API_KEY = 'UwDnueoQfGQldxP6e_SJQpZUJtFAs9YA';
+const FACEPP_API_SECRET = 'ks9e_h3BkVfQ52pvc-FyWgdzcHUvmY0S';
+const FACEPP_ENDPOINT = 'https://api-us.faceplusplus.com/facepp/v3/compare';
+const OCR_SPACE_ENDPOINT = 'https://api.ocr.space/parse/image';
+const OCR_SPACE_API_KEY = 'helloworld';
+const ID_WRITE_URL = 'https://script.google.com/macros/s/AKfycbzjPK4G4Kgj0X5lLRDeY2EixBAOFuw58uhMTc6G8WAZyHwOmXKUUo_qnpzBjPFLw-tu/exec';
+const RESERVATION_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxcloKN6uq7sJ9-IrfMlecLdzDqrLSW-GXhVYl_m24i9nNv0t_oYsmwddelmsyLx8XkTg/exec';
 
-  function nextStep(n) {
-    for (let i = 1; i <= 4; i++) {
-      document.getElementById('step' + i).classList.remove('active');
-    }
-    document.getElementById('step' + n).classList.add('active');
-    if (n === 2) initIdCamera();
-    if (n === 3) initCamera();
-  }
+function nextStep(n) {
+  for (let i = 1; i <= 4; i++) document.getElementById('step' + i).classList.remove('active');
+  document.getElementById('step' + n).classList.add('active');
+  if (n === 2) initCameraSelector('cameraSelect', 'externalVideo');
+  if (n === 3) initCameraSelector('cameraSelect2', 'video');
+}
+function prevStep(n) { nextStep(n); }
 
-  function prevStep(n) {
-    nextStep(n);
-  }
-
-  async function initIdCamera() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: "environment" } } });
-      document.getElementById('idVideo').srcObject = stream;
-    } catch (err) {
-      alert("❌ 開啟主鏡頭失敗：" + err.message);
-    }
-  }
-
-  async function initCamera() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      document.getElementById('video').srcObject = stream;
-    } catch (err) {
-      alert("❌ 開啟前鏡頭失敗：" + err.message);
-    }
-  }
-
-  function captureIdPhoto() {
-    const video = document.getElementById('idVideo');
-    const canvas = document.getElementById('idCanvas');
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const dataURL = canvas.toDataURL('image/jpeg', 0.9);
-    document.getElementById('idPreview').src = dataURL;
-    document.getElementById('idPreview').style.display = 'block';
-  }
-
-  function capturePhoto() {
-    const ctx = document.getElementById('canvas').getContext('2d');
-    ctx.drawImage(document.getElementById('video'), 0, 0, 320, 240);
-    const dataURL = document.getElementById('canvas').toDataURL('image/jpeg', 0.9);
-    document.getElementById('snapshot').src = dataURL;
-  }
-
-  async function resizeImage(blob, maxSize = 1000) {
-    const img = new Image();
-    const reader = new FileReader();
-    return new Promise((resolve, reject) => {
-      reader.onload = e => {
-        img.src = e.target.result;
-        img.onload = () => {
-          const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
-          const canvas = document.createElement('canvas');
-          canvas.width = img.width * scale;
-          canvas.height = img.height * scale;
-          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-          canvas.toBlob(blob => resolve(new File([blob], 'resized.jpg', { type: 'image/jpeg' })), 'image/jpeg', 0.8);
-        };
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
+async function initCameraSelector(selectId, videoId) {
+  try {
+    await navigator.mediaDevices.getUserMedia({ video: true });
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const videoDevices = devices.filter(d => d.kind === 'videoinput');
+    const select = document.getElementById(selectId);
+    select.innerHTML = '';
+    videoDevices.forEach(device => {
+      const option = document.createElement('option');
+      option.value = device.deviceId;
+      option.textContent = device.label || `Camera ${select.length + 1}`;
+      select.appendChild(option);
     });
+    select.onchange = async () => {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: select.value } } });
+      document.getElementById(videoId).srcObject = stream;
+    };
+    if (videoDevices.length > 0) {
+      select.selectedIndex = videoDevices.length - 1;
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { deviceId: { exact: videoDevices[videoDevices.length - 1].deviceId } }
+      });
+      document.getElementById(videoId).srcObject = stream;
+    }
+  } catch (err) {
+    alert("❌ 鏡頭初始化失敗：" + err.message);
+    console.error(err);
   }
+}
 
-  async function checkIfValidDocument(imageBlob) {
-    const formData = new FormData();
-    formData.append('apikey', OCR_SPACE_API_KEY);
-    formData.append('language', 'eng');
-    formData.append('isOverlayRequired', false);
-    formData.append('file', imageBlob);
-    const res = await fetch(OCR_SPACE_ENDPOINT, { method: 'POST', body: formData });
-    const data = await res.json();
-    const text = (data?.ParsedResults?.[0]?.ParsedText || '').toUpperCase();
-    ocrText.innerText = "📄 OCR 辨識文字：\n" + text;
+function captureIdPhoto() {
+  const video = document.getElementById('externalVideo');
+  const canvas = document.getElementById('idCanvas');
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  const dataURL = canvas.toDataURL('image/jpeg', 0.9);
+  document.getElementById('idPreview').src = dataURL;
+  document.getElementById('idPreview').style.display = 'block';
+}
 
-    const idMatch = text.match(/[A-Z][12]\d{8}/);
-    const debug = [
-      idMatch ? `✅ 身分證號：${idMatch[0]}` : '❌ 無效身分證號',
-      text.includes("TAIWAN") ? '✅ 含關鍵字' : '❌ 未含關鍵字'
-    ].join('\n');
-    ocrDetails.innerText = debug;
-    return idMatch ? idMatch[0] : null;
-  }
+function capturePhoto() {
+  const video = document.getElementById('idVideo');
+  const canvas = document.getElementById('idCanvas');
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  const dataURL = canvas.toDataURL('image/jpeg', 0.9);
+  document.getElementById('idPreview').src = dataURL;
+  document.getElementById('idPreview').style.display = 'block';
+}
+ 
+async function submitPhotos() {
+  const phone = document.getElementById('phone').value.trim();
+  if (!phone) return alert('請輸入手機號碼');
 
-  async function getReservationByPhone(phone) {
-    try {
-      const res = await fetch(RESERVATION_SHEET_URL);
-      const data = await res.json();
-      const normalized = phone.startsWith('0') ? phone : '0' + phone;
-      return data.find(e => e['電話'] === normalized || e['電話'] === "'" + normalized) || null;
-    } catch (err) {
-      console.error("❌ 查詢失敗", err);
-      return null;
-    }
-  }
+  const idBlob = await (await fetch(document.getElementById('idCanvas').toDataURL('image/jpeg', 0.9))).blob();
+  const selfieBlob = await (await fetch(document.getElementById('canvas').toDataURL('image/jpeg', 0.9))).blob();
 
-  async function submitPhotos() {
-    console.log("👉 submitPhotos 被呼叫了");
+  const reservationRes = await fetch(RESERVATION_SHEET_URL);
+  const reservationData = await reservationRes.json();
+  const matched = reservationData.find(e => e['電話'] === phone || e['電話'] === `'${phone}`);
+  if (!matched) return document.getElementById('result').innerText = '❌ 查無預約';
 
-    const idCanvas = document.getElementById('idCanvas');
-    const idDataUrl = idCanvas.toDataURL('image/jpeg', 0.9);
-    const idBlob = await (await fetch(idDataUrl)).blob();
+  const formData = new FormData();
+  formData.append('apikey', OCR_SPACE_API_KEY);
+  formData.append('language', 'eng');
+  formData.append('file', idBlob);
+  const ocrRes = await fetch(OCR_SPACE_ENDPOINT, { method: 'POST', body: formData });
+  const ocrData = await ocrRes.json();
+  const text = ocrData?.ParsedResults?.[0]?.ParsedText || '';
+  document.getElementById('ocrText').innerText = text;
 
-    const selfieDataUrl = document.getElementById('canvas').toDataURL('image/jpeg', 0.9);
-    const selfieBlob = await (await fetch(selfieDataUrl)).blob();
+  const idNumber = text.match(/[A-Z][12]\d{8}/)?.[0] || '';
+  if (!idNumber) return document.getElementById('result').innerText = '❌ 身分證號未識別';
 
-    const phone = document.getElementById('phone').value.trim();
-    if (!idBlob || !selfieBlob || !phone) {
-      alert("請先完成所有拍照與輸入手機號碼");
-      return;
-    }
+  const compareForm = new FormData();
+  compareForm.append('api_key', FACEPP_API_KEY);
+  compareForm.append('api_secret', FACEPP_API_SECRET);
+  compareForm.append('image_file1', idBlob);
+  compareForm.append('image_file2', selfieBlob);
+  const compareRes = await fetch(FACEPP_ENDPOINT, { method: 'POST', body: compareForm });
+  const compareData = await compareRes.json();
 
-    const reservation = await getReservationByPhone(phone);
-    if (!reservation) {
-      document.getElementById('result').innerText = "❌ 查無預約";
-      return;
-    }
+  const score = compareData?.confidence || 0;
+  if (score < 60) return document.getElementById('result').innerText = `❌ 驗證失敗，相似度 ${score}`;
+  document.getElementById('result').innerText = `✅ 相似度 ${score}`;
 
-    document.getElementById('result').innerText = "⏳ 驗證中...";
-    const resizedId = await resizeImage(idBlob);
-    const idNumber = await checkIfValidDocument(resizedId);
-    if (!idNumber) {
-      document.getElementById('result').innerText = "❌ 身分證識別失敗";
-      return;
-    }
+  const payload = new URLSearchParams();
+  payload.append('data', [
+    matched['商品名稱'],
+    matched['姓名'],
+    matched['電話'],
+    matched['Email'],
+    matched['開始時間'],
+    matched['結束時間'],
+    idNumber
+  ].join(','));
 
-    const formData = new FormData();
-    formData.append('api_key', FACEPP_API_KEY);
-    formData.append('api_secret', FACEPP_API_SECRET);
-    formData.append('image_file1', resizedId);
-    formData.append('image_file2', selfieBlob);
+  const writeRes = await fetch(ID_WRITE_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: payload
+  });
 
-    try {
-      const res = await fetch(FACEPP_ENDPOINT, { method: 'POST', body: formData });
-      const json = await res.json();
-      const similarity = json.confidence;
-
-      if (similarity && similarity > 60) {
-        document.getElementById('result').innerText = `✅ 相似度 ${similarity}`;
-        const today = new Date().toISOString().split('T')[0];
-        const usedRooms = JSON.parse(localStorage.getItem('usedRooms_' + today) || '[]');
-        const room = [...Array(12).keys()].map(i => i + 1).find(r => !usedRooms.includes(r));
-        if (!room) return document.getElementById('roomInfo').innerText = "❌ 房間已滿";
-        usedRooms.push(room);
-        localStorage.setItem('usedRooms_' + today, JSON.stringify(usedRooms));
-        document.getElementById('roomInfo').innerText = `房號：${room}\n入場密碼：8899`;
-
-        const payload = new URLSearchParams();
-        payload.append('data', [
-          reservation['商品名稱'] || '',
-          reservation['姓名'] || '',
-          reservation['電話'] || '',
-          reservation['Email'] || '',
-          reservation['開始時間'] || '',
-          reservation['結束時間'] || '',
-          idNumber
-        ].join(','));
-
-        const writeRes = await fetch(ID_WRITE_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: payload
-        });
-
-        const writeText = await writeRes.text();
-        document.getElementById('roomInfo').innerText += writeText.includes('Success')
-          ? `\n✅ 身分證號已寫入`
-          : `\n❌ 寫入失敗：${writeText}`;
-      } else {
-        document.getElementById('result').innerText = `❌ 驗證失敗，相似度 ${similarity}`;
-      }
-    } catch (e) {
-      console.error(e);
-      document.getElementById('result').innerText = "⚠️ 驗證過程錯誤：" + e.message;
-    }
-  }
+  const writeText = await writeRes.text();
+  document.getElementById('roomInfo').innerText = writeText.includes('Success') ? '✅ 身分證已寫入' : `❌ 寫入失敗：${writeText}`;
+}
 </script>
 </body>
 </html>
