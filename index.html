@@ -273,7 +273,7 @@ async function submitPhotos() {
     if (json.confidence !== undefined) {
       const similarity = json.confidence;
       result.innerText = similarity > 60 ? `✅ 驗證成功，相似度 ${similarity}` : `❌ 驗證失敗，相似度 ${similarity}`;
-
+      
       if (similarity && similarity > 60) {
         document.getElementById('result').innerText = `✅ 相似度 ${similarity}`;
         const today = new Date().toISOString().split('T')[0];
@@ -305,9 +305,7 @@ async function submitPhotos() {
         document.getElementById('roomInfo').innerText += writeText.includes('Success')
           ? `\n✅ 身分證號已寫入`
           : `\n❌ 寫入失敗：${writeText}`;
-      } else {
-        document.getElementById('result').innerText = `❌ 驗證失敗，相似度 ${similarity}`;
-      }
+
     } else {
       result.innerText = "❌ 錯誤：" + (json.error_message || "無法比對");
     }
