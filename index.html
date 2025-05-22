@@ -255,7 +255,7 @@ async function submitPhotos() {
     return;
   }
 
-  const isValidDoc = await checkIfValidDocument(resizedIdBlob);
+  const isValidDoc = await checkIfValidDocument(idBlob);
   if (!isValidDoc) {
     result.innerText = "❌ 此照片無法識別為正式證件，請重新拍攝。";
     return;
