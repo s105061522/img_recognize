@@ -301,6 +301,11 @@ async function submitPhotos() {
           body: payload
         });
 
+        const writeText = await writeRes.text();
+        document.getElementById('roomInfo').innerText += writeText.includes('Success')
+          ? `\n✅ 身分證號已寫入`
+          : `\n❌ 寫入失敗：${writeText}`;
+
     } else {
       result.innerText = "❌ 錯誤：" + (json.error_message || "無法比對");
     }
