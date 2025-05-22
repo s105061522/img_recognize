@@ -67,10 +67,53 @@ const FACEPP_ENDPOINT = 'https://api-us.faceplusplus.com/facepp/v3/compare';
 function nextStep(n) {
   for (let i = 1; i <= 4; i++) document.getElementById('step' + i).classList.remove('active');
   document.getElementById('step' + n).classList.add('active');
+  if (n === 2) {
+    initMainCamera('idVideo');
+  } else if (n === 3) {
+    stopStream(idStream, 'idVideo');
+    initFrontCamera('video');
+  }
+}
+function prevStep(n) { nextStep(n); }
+
+let idStream = null;
+let selfieStream = null;
+
+function stopStream(stream, videoId) {
+  if (stream) {
+    stream.getTracks().forEach(track => track.stop());
+    document.getElementById(videoId).srcObject = null;
+  }
 }
 
-function prevStep(n) {
-  nextStep(n);
+async function initMainCamera(videoId) {
+  try {
+    if (idStream) {
+      idStream.getTracks().forEach(track => track.stop());
+      document.getElementById(videoId).srcObject = null;
+    }
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    document.getElementById(videoId).srcObject = stream;
+    idStream = stream;
+  } catch (err) {
+    alert("❌ 無法啟用主鏡頭：" + err.message);
+    console.error(err);
+  }
+}
+
+async function initFrontCamera(videoId) {
+  try {
+    if (selfieStream) {
+      selfieStream.getTracks().forEach(track => track.stop());
+      document.getElementById(videoId).srcObject = null;
+    }
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+    document.getElementById(videoId).srcObject = stream;
+    selfieStream = stream;
+  } catch (err) {
+    alert("❌ 無法啟用前鏡頭：" + err.message);
+    console.error(err);
+  }
 }
 
 function captureIdPhoto() {
