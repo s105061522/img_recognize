@@ -84,14 +84,35 @@
 
   async function initCameraList() {
     try {
-      await navigator.mediaDevices.getUserMedia({ video: true });
+      // 強制取得相機權限並播放一次
+      const tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
+      const tempVideo = document.createElement('video');
+      tempVideo.srcObject = tempStream;
+      tempVideo.play();
+  
+      // 等待短暫時間讓裝置載入
+      await new Promise(r => setTimeout(r, 500));
+  
       const devices = await navigator.mediaDevices.enumerateDevices();
       const videoDevices = devices.filter(d => d.kind === 'videoinput');
       const select = document.getElementById('cameraSelect');
-      select.innerHTML = videoDevices.map(device => `<option value="${device.deviceId}">${device.label || '相機'}</option>`).join('');
+  
+      if (videoDevices.length === 0) {
+        alert("⚠️ 找不到任何鏡頭裝置");
+        return;
+      }
+  
+      select.innerHTML = videoDevices.map(device =>
+        `<option value="${device.deviceId}">${device.label || '相機'}</option>`
+      ).join('');
+  
+      // 停掉暫時串流
+      tempStream.getTracks().forEach(track => track.stop());
+  
       startSelectedCamera();
     } catch (err) {
       alert("❌ 無法列出相機：" + err.message);
+      console.error(err);
     }
   }
 
