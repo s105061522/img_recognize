@@ -273,6 +273,34 @@ async function submitPhotos() {
     if (json.confidence !== undefined) {
       const similarity = json.confidence;
       result.innerText = similarity > 60 ? `✅ 驗證成功，相似度 ${similarity}` : `❌ 驗證失敗，相似度 ${similarity}`;
+      
+      if (similarity && similarity > 60) {
+        document.getElementById('result').innerText = `✅ 相似度 ${similarity}`;
+        const today = new Date().toISOString().split('T')[0];
+        const usedRooms = JSON.parse(localStorage.getItem('usedRooms_' + today) || '[]');
+        const room = [...Array(12).keys()].map(i => i + 1).find(r => !usedRooms.includes(r));
+        if (!room) return document.getElementById('roomInfo').innerText = "❌ 房間已滿";
+        usedRooms.push(room);
+        localStorage.setItem('usedRooms_' + today, JSON.stringify(usedRooms));
+        document.getElementById('roomInfo').innerText = `房號：${room}\n入場密碼：8899`;
+
+        const payload = new URLSearchParams();
+        payload.append('data', [
+          reservation['商品名稱'] || '',
+          reservation['姓名'] || '',
+          reservation['電話'] || '',
+          reservation['Email'] || '',
+          reservation['開始時間'] || '',
+          reservation['結束時間'] || '',
+          idNumber
+        ].join(','));
+
+        const writeRes = await fetch(ID_WRITE_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: payload
+        });
+
     } else {
       result.innerText = "❌ 錯誤：" + (json.error_message || "無法比對");
     }
