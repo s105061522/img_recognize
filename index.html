@@ -82,10 +82,20 @@
 
   async function initCamera() {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      document.getElementById('video').srcObject = stream;
+      const constraints = {
+        video: {
+          facingMode: "user"  // 指定前鏡頭
+        },
+        audio: false
+      };
+  
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      const video = document.getElementById('video');
+      video.srcObject = stream;
+      await video.play();
     } catch (err) {
       alert("❌ 開啟前鏡頭失敗：" + err.message);
+      console.error(err);
     }
   }
 
