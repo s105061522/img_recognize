@@ -82,10 +82,17 @@
 
   async function initCamera() {
     try {
+      // 初次取得權限，避免 label 為空
+      await navigator.mediaDevices.getUserMedia({ video: true });
+  
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter(device => device.kind === 'videoinput');
+  
+      let frontCamera = videoDevices.find(device => /front/i.test(device.label));
+      if (!frontCamera) frontCamera = videoDevices[0];
+  
       const constraints = {
-        video: {
-          facingMode: "user"  // 指定前鏡頭
-        },
+        video: { deviceId: frontCamera.deviceId ? { exact: frontCamera.deviceId } : undefined },
         audio: false
       };
   
@@ -95,7 +102,7 @@
       await video.play();
     } catch (err) {
       alert("❌ 開啟前鏡頭失敗：" + err.message);
-      console.error(err);
+      console.error("initCamera error:", err);
     }
   }
 
