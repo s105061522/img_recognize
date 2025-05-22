@@ -126,7 +126,7 @@ function captureIdPhoto() {
   const canvas = document.getElementById('idCanvas');
   const ctx = canvas.getContext('2d');
   ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-  const dataURL = canvas.toDataURL('image/jpeg', 0.9);
+  const dataURL = canvas.toDataURL('image/jpeg', 1);
   document.getElementById('idPreview').src = dataURL;
   document.getElementById('idPreview').style.display = 'block';
 }
@@ -134,7 +134,7 @@ function captureIdPhoto() {
 function capturePhoto() {
   const ctx = document.getElementById('canvas').getContext('2d');
   ctx.drawImage(document.getElementById('video'), 0, 0, 320, 240);
-  const dataURL = document.getElementById('canvas').toDataURL('image/jpeg', 0.9);
+  const dataURL = document.getElementById('canvas').toDataURL('image/jpeg', 1);
   document.getElementById('snapshot').src = dataURL;
 }
 
