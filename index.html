@@ -71,7 +71,7 @@ async function initMainCamera(videoId) {
     await navigator.mediaDevices.getUserMedia({ video: true });
     const devices = await navigator.mediaDevices.enumerateDevices();
     const videoDevices = devices.filter(device => device.kind === 'videoinput');
-    const backCamera = videoDevices.find(d => d.label.toLowerCase().includes('back') || d.label.toLowerCase().includes('rear')) || d.label.toLowerCase().includes('main')) || videoDevices[0];
+    const backCamera = videoDevices.find(d => d.label.toLowerCase().includes('back') || d.label.toLowerCase().includes('rear')) || videoDevices[0];
     const stream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: backCamera.deviceId } } });
     document.getElementById(videoId).srcObject = stream;
   } catch (err) {
