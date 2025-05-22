@@ -47,6 +47,8 @@
     <pre id="ocrText"></pre>
     <pre id="ocrDetails" style="color: green;"></pre>
     <pre id="roomInfo" style="color: #856404;"></pre>
+    <h3>📎 OCR 上傳影像（身份證原圖）</h3>
+    <img id="ocrDebugImg" style="border:1px solid #888; display:block; margin: 10px auto; max-width:320px;">
   </div>
 
 <script>
@@ -57,6 +59,7 @@ const result = document.getElementById('result');
 const ocrText = document.getElementById('ocrText');
 const ocrDetails = document.getElementById('ocrDetails');
 const idPreview = document.getElementById('idPreview');
+const ocrDebugImg = document.getElementById('ocrDebugImg');
 
 const OCR_SPACE_API_KEY = 'helloworld';
 const OCR_SPACE_ENDPOINT = 'https://api.ocr.space/parse/image';
@@ -225,6 +228,7 @@ async function submitPhotos() {
     return;
   }
 
+  ocrDebugImg.src = idDataUrl;
   result.innerText = "⏳ 驗證中，請稍候...";
   ocrText.innerText = '';
   ocrDetails.innerText = '';
