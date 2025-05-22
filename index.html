@@ -23,8 +23,9 @@
   <div id="step2" class="step">
     <h2>拍攝身分證</h2>
     <video id="idVideo" autoplay playsinline muted></video><br>
+    <button onclick="startMainCamera()">啟用主鏡頭</button>
     <button onclick="captureIdPhoto()">拍照</button><br><br>
-    <canvas id="idCanvas" width="320" height="240" style="display:none;"></canvas>
+    <canvas id="idCanvas" style="display:none;"></canvas>
     <img id="idPreview" src="" style="display:none; border:1px solid #ccc;"><br>
     <button onclick="prevStep(1)">上一步</button>
     <button onclick="nextStep(3)">下一步</button>
@@ -33,8 +34,9 @@
   <div id="step3" class="step">
     <h2>拍攝現場自拍照</h2>
     <video id="video" autoplay playsinline muted></video><br>
+    <button onclick="startFrontCamera()">啟用前鏡頭</button>
     <button onclick="capturePhoto()">拍照</button><br><br>
-    <canvas id="canvas" width="320" height="240" style="display:none;"></canvas>
+    <canvas id="canvas" style="display:none;"></canvas>
     <img id="snapshot" src=""><br>
     <button onclick="prevStep(2)">上一步</button>
     <button onclick="nextStep(4)">下一步</button>
@@ -124,18 +126,22 @@ async function initFrontCamera(videoId) {
 function captureIdPhoto() {
   const video = document.getElementById('idVideo');
   const canvas = document.getElementById('idCanvas');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
   const ctx = canvas.getContext('2d');
   ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-  const dataURL = canvas.toDataURL('image/jpeg', 1);
-  document.getElementById('idPreview').src = dataURL;
+  document.getElementById('idPreview').src = canvas.toDataURL('image/jpeg', 0.9);
   document.getElementById('idPreview').style.display = 'block';
 }
 
 function capturePhoto() {
-  const ctx = document.getElementById('canvas').getContext('2d');
-  ctx.drawImage(document.getElementById('video'), 0, 0, 320, 240);
-  const dataURL = document.getElementById('canvas').toDataURL('image/jpeg', 1);
-  document.getElementById('snapshot').src = dataURL;
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('canvas');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  document.getElementById('snapshot').src = canvas.toDataURL('image/jpeg', 0.9);
 }
 
 function resizeImage(file, maxSize = 1000) {
