@@ -162,7 +162,7 @@ function resizeImage(file, maxSize = 1000) {
         const file = new File([blob], 'enhanced.jpg', { type: 'image/jpeg' });
         ocrDebugImg.src = URL.createObjectURL(blob); // debug 預覽圖
         resolve(file);
-      }, 'image/jpeg', 0.9); // 保留較高畫質
+      }, 'image/jpeg', 1); // 保留較高畫質
     };
 
     reader.onerror = reject;
@@ -221,9 +221,9 @@ async function getReservationByPhone(phone) {
 
 async function submitPhotos() {
   const idCanvas = document.getElementById('idCanvas');
-  const idDataUrl = idCanvas.toDataURL('image/jpeg', 0.9);
+  const idDataUrl = idCanvas.toDataURL('image/jpeg', 1);
   const idBlob = await (await fetch(idDataUrl)).blob();
-  const selfieDataUrl = document.getElementById('canvas').toDataURL('image/jpeg', 0.9);
+  const selfieDataUrl = document.getElementById('canvas').toDataURL('image/jpeg', 1);
   const selfieBlob = await (await fetch(selfieDataUrl)).blob();
 
   const phone = document.getElementById('phone').value.trim();
