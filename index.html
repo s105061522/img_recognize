@@ -130,6 +130,7 @@ function capturePhoto() {
 async function resizeImage(blob, maxSize = 1000) {
   const img = new Image();
   const reader = new FileReader();
+
   return new Promise((resolve, reject) => {
     reader.onload = e => {
       img.src = e.target.result;
@@ -138,8 +139,20 @@ async function resizeImage(blob, maxSize = 1000) {
         const canvas = document.createElement('canvas');
         canvas.width = img.width * scale;
         canvas.height = img.height * scale;
-        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-        canvas.toBlob(blob => resolve(new File([blob], 'resized.jpg', { type: 'image/jpeg' })), 'image/jpeg', 0.8);
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        // 轉灰階 + 對比提升
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+        for (let i = 0; i < data.length; i += 4) {
+          const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
+          const contrast = avg > 127 ? 255 : 0;  // 提升對比
+          data[i] = data[i + 1] = data[i + 2] = contrast;
+        }
+        ctx.putImageData(imageData, 0, 0);
+
+        canvas.toBlob(blob => resolve(new File([blob], 'enhanced.jpg', { type: 'image/jpeg' })), 'image/jpeg', 0.8);
       };
     };
     reader.onerror = reject;
