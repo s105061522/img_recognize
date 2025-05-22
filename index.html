@@ -9,6 +9,7 @@
     video, canvas, img { width: 320px; display: block; margin: 10px auto; }
     pre { white-space: pre-wrap; background: #f3f3f3; padding: 8px; border-radius: 4px; }
     .error { color: red; font-weight: bold; }
+    #cameraSelect { display: block; margin: 10px auto; padding: 5px; font-size: 16px; }
   </style>
 </head>
 <body>
@@ -32,6 +33,7 @@
 
   <div id="step3" class="step">
     <h2>拍攝現場自拍照</h2>
+    <select id="cameraSelect" onchange="startSelectedCamera()"></select>
     <video id="video" width="320" height="240" autoplay playsinline muted></video><br>
     <button onclick="capturePhoto()">拍照</button><br><br>
     <canvas id="canvas" width="320" height="240" style="display:none;"></canvas>
@@ -50,6 +52,7 @@
   </div>
 
 <script>
+  // 以下所有常數維持不變
   const FACEPP_API_KEY = 'UwDnueoQfGQldxP6e_SJQpZUJtFAs9YA';
   const FACEPP_API_SECRET = 'ks9e_h3BkVfQ52pvc-FyWgdzcHUvmY0S';
   const FACEPP_ENDPOINT = 'https://api-us.faceplusplus.com/facepp/v3/compare';
@@ -58,43 +61,13 @@
   const ID_WRITE_URL = 'https://script.google.com/macros/s/AKfycbzjPK4G4Kgj0X5lLRDeY2EixBAOFuw58uhMTc6G8WAZyHwOmXKUUo_qnpzBjPFLw-tu/exec';
   const RESERVATION_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxcloKN6uq7sJ9-IrfMlecLdzDqrLSW-GXhVYl_m24i9nNv0t_oYsmwddelmsyLx8XkTg/exec';
 
-  <select id="cameraSelect" onchange="startSelectedCamera()"></select>
-  async function populateCameraOptions() {
-    const select = document.getElementById('cameraSelect');
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const videoDevices = devices.filter(device => device.kind === 'videoinput');
-  
-    select.innerHTML = videoDevices.map(device =>
-      `<option value="${device.deviceId}">${device.label || 'Camera'}</option>`
-    ).join('');
-  }
-  
-  async function startSelectedCamera() {
-    const select = document.getElementById('cameraSelect');
-    const deviceId = select.value;
-  
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { deviceId: { exact: deviceId } },
-        audio: false
-      });
-      const video = document.getElementById('video');
-      video.srcObject = stream;
-      await video.play();
-    } catch (err) {
-      alert("❌ 無法啟動鏡頭：" + err.message);
-    }
-  }
-
   function nextStep(n) {
     for (let i = 1; i <= 4; i++) {
       document.getElementById('step' + i).classList.remove('active');
     }
     document.getElementById('step' + n).classList.add('active');
     if (n === 2) initIdCamera();
-    if (n === 3) populateCameraOptions().then(startSelectedCamera);
-}
-
+    if (n === 3) initCameraList().then(startSelectedCamera);
   }
 
   function prevStep(n) {
@@ -110,29 +83,33 @@
     }
   }
 
-  async function initCamera() {
+  async function initCameraList() {
     try {
-      // 初次取得權限，避免 label 為空
-      await navigator.mediaDevices.getUserMedia({ video: true });
-  
+      await navigator.mediaDevices.getUserMedia({ video: true }); // 先取權限，避免 label 為空
+      const select = document.getElementById('cameraSelect');
       const devices = await navigator.mediaDevices.enumerateDevices();
       const videoDevices = devices.filter(device => device.kind === 'videoinput');
-  
-      let frontCamera = videoDevices.find(device => /front/i.test(device.label));
-      if (!frontCamera) frontCamera = videoDevices[0];
-  
-      const constraints = {
-        video: { deviceId: frontCamera.deviceId ? { exact: frontCamera.deviceId } : undefined },
+      select.innerHTML = videoDevices.map(device =>
+        `<option value="${device.deviceId}">${device.label || '相機'}</option>`
+      ).join('');
+    } catch (err) {
+      alert("❌ 無法列出相機：" + err.message);
+    }
+  }
+
+  async function startSelectedCamera() {
+    const select = document.getElementById('cameraSelect');
+    const deviceId = select.value;
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { deviceId: { exact: deviceId } },
         audio: false
-      };
-  
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      });
       const video = document.getElementById('video');
       video.srcObject = stream;
       await video.play();
     } catch (err) {
-      alert("❌ 開啟前鏡頭失敗：" + err.message);
-      console.error("initCamera error:", err);
+      alert("❌ 無法啟動鏡頭：" + err.message);
     }
   }
 
