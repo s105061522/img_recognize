@@ -68,14 +68,25 @@ function prevStep(n) { nextStep(n); }
 
 async function initMainCamera(videoId) {
   try {
-    await navigator.mediaDevices.getUserMedia({ video: true });
+    const tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
+    tempStream.getTracks().forEach(track => track.stop()); // 關閉權限用的初始攝影機
+
     const devices = await navigator.mediaDevices.enumerateDevices();
-    const videoDevices = devices.filter(device => device.kind === 'videoinput');
-    const backCamera = videoDevices.find(d => d.label.toLowerCase().includes('back') || d.label.toLowerCase().includes('rear')) || videoDevices[0];
-    const stream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: backCamera.deviceId } } });
+    const videoDevices = devices.filter(d => d.kind === 'videoinput');
+
+    // 若 label 還是空，就直接用第0個
+    const backCamera = videoDevices.find(d => (d.label || '').toLowerCase().includes('back')) || videoDevices[0];
+
+    if (!backCamera) throw new Error('找不到任何攝影機裝置');
+
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { deviceId: { exact: backCamera.deviceId } }
+    });
+
     document.getElementById(videoId).srcObject = stream;
   } catch (err) {
-    alert("❌ 無法啟用主鏡頭：" + err.message);
+    alert('❌ 無法啟用主鏡頭：' + err.message);
+    console.error(err);
   }
 }
 
