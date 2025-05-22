@@ -84,14 +84,14 @@
 
   async function initCameraList() {
     try {
-      // 強制取得相機權限並播放一次
+      // 先拿到串流（實際播放以授權裝置名）
       const tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
-      const tempVideo = document.createElement('video');
-      tempVideo.srcObject = tempStream;
-      tempVideo.play();
   
-      // 等待短暫時間讓裝置載入
-      await new Promise(r => setTimeout(r, 500));
+      // 讓裝置名可解鎖
+      const dummyVideo = document.createElement('video');
+      dummyVideo.srcObject = tempStream;
+      dummyVideo.play();
+      await new Promise(r => setTimeout(r, 500)); // 給時間讓 device label 解鎖
   
       const devices = await navigator.mediaDevices.enumerateDevices();
       const videoDevices = devices.filter(d => d.kind === 'videoinput');
@@ -106,10 +106,10 @@
         `<option value="${device.deviceId}">${device.label || '相機'}</option>`
       ).join('');
   
-      // 停掉暫時串流
+      // 停用這個 dummy stream
       tempStream.getTracks().forEach(track => track.stop());
   
-      startSelectedCamera();
+      startSelectedCamera(); // 啟動預設鏡頭
     } catch (err) {
       alert("❌ 無法列出相機：" + err.message);
       console.error(err);
