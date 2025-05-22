@@ -58,13 +58,43 @@
   const ID_WRITE_URL = 'https://script.google.com/macros/s/AKfycbzjPK4G4Kgj0X5lLRDeY2EixBAOFuw58uhMTc6G8WAZyHwOmXKUUo_qnpzBjPFLw-tu/exec';
   const RESERVATION_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxcloKN6uq7sJ9-IrfMlecLdzDqrLSW-GXhVYl_m24i9nNv0t_oYsmwddelmsyLx8XkTg/exec';
 
+  <select id="cameraSelect" onchange="startSelectedCamera()"></select>
+  async function populateCameraOptions() {
+    const select = document.getElementById('cameraSelect');
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const videoDevices = devices.filter(device => device.kind === 'videoinput');
+  
+    select.innerHTML = videoDevices.map(device =>
+      `<option value="${device.deviceId}">${device.label || 'Camera'}</option>`
+    ).join('');
+  }
+  
+  async function startSelectedCamera() {
+    const select = document.getElementById('cameraSelect');
+    const deviceId = select.value;
+  
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { deviceId: { exact: deviceId } },
+        audio: false
+      });
+      const video = document.getElementById('video');
+      video.srcObject = stream;
+      await video.play();
+    } catch (err) {
+      alert("❌ 無法啟動鏡頭：" + err.message);
+    }
+  }
+
   function nextStep(n) {
     for (let i = 1; i <= 4; i++) {
       document.getElementById('step' + i).classList.remove('active');
     }
     document.getElementById('step' + n).classList.add('active');
     if (n === 2) initIdCamera();
-    if (n === 3) initCamera();
+    if (n === 3) populateCameraOptions().then(startSelectedCamera);
+}
+
   }
 
   function prevStep(n) {
