@@ -161,7 +161,7 @@ function resizeImage(file, maxSize = 1000) {
       const ctx = canvas.getContext('2d');
 
       // 強化處理：提高清晰度與對比
-      ctx.filter = 'contrast(130%) brightness(110%)';
+      ctx.filter = 'contrast(160%) brightness(110%)';
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
       canvas.toBlob(blob => {
