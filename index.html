@@ -22,11 +22,10 @@
 
   <div id="step2" class="step">
     <h2>拍攝身分證</h2>
-    <video id="externalVideo" autoplay playsinline></video><br>
-    <select id="cameraSelect" style="display:block; margin: 10px auto;"></select>
-    <button onclick="capturePhoto()">拍照</button>
+    <video id="idVideo" autoplay playsinline muted></video><br>
+    <button onclick="captureIdPhoto()">拍照</button><br><br>
     <canvas id="idCanvas" width="320" height="240" style="display:none;"></canvas>
-    <img id="idPreview" src="" style="display:none;">
+    <img id="idPreview" src="" style="display:none; border:1px solid #ccc;"><br>
     <button onclick="prevStep(1)">上一步</button>
     <button onclick="nextStep(3)">下一步</button>
   </div>
@@ -34,8 +33,7 @@
   <div id="step3" class="step">
     <h2>拍攝現場自拍照</h2>
     <video id="video" autoplay playsinline muted></video><br>
-    <select id="cameraSelect2" style="display:block; margin: 10px auto;"></select>
-    <button onclick="captureIDPhoto()">拍照</button><br><br>
+    <button onclick="capturePhoto()">拍照</button><br><br>
     <canvas id="canvas" width="320" height="240" style="display:none;"></canvas>
     <img id="snapshot" src=""><br>
     <button onclick="prevStep(2)">上一步</button>
@@ -63,43 +61,39 @@ const RESERVATION_SHEET_URL = 'https://script.google.com/macros/s/AKfycbxcloKN6u
 function nextStep(n) {
   for (let i = 1; i <= 4; i++) document.getElementById('step' + i).classList.remove('active');
   document.getElementById('step' + n).classList.add('active');
-  if (n === 2) initCameraSelector('cameraSelect', 'externalVideo');
-  if (n === 3) initCameraSelector('cameraSelect2', 'video');
+  if (n === 2) initMainCamera('idVideo');
+  if (n === 3) initFrontCamera('video');
 }
 function prevStep(n) { nextStep(n); }
 
-async function initCameraSelector(selectId, videoId) {
+async function initMainCamera(videoId) {
   try {
     await navigator.mediaDevices.getUserMedia({ video: true });
     const devices = await navigator.mediaDevices.enumerateDevices();
-    const videoDevices = devices.filter(d => d.kind === 'videoinput');
-    const select = document.getElementById(selectId);
-    select.innerHTML = '';
-    videoDevices.forEach(device => {
-      const option = document.createElement('option');
-      option.value = device.deviceId;
-      option.textContent = device.label || `Camera ${select.length + 1}`;
-      select.appendChild(option);
-    });
-    select.onchange = async () => {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: select.value } } });
-      document.getElementById(videoId).srcObject = stream;
-    };
-    if (videoDevices.length > 0) {
-      select.selectedIndex = videoDevices.length - 1;
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { deviceId: { exact: videoDevices[videoDevices.length - 1].deviceId } }
-      });
-      document.getElementById(videoId).srcObject = stream;
-    }
+    const videoDevices = devices.filter(device => device.kind === 'videoinput');
+    const backCamera = videoDevices.find(d => d.label.toLowerCase().includes('back') || d.label.toLowerCase().includes('rear')) || videoDevices[0];
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: backCamera.deviceId } } });
+    document.getElementById(videoId).srcObject = stream;
   } catch (err) {
-    alert("❌ 鏡頭初始化失敗：" + err.message);
-    console.error(err);
+    alert("❌ 無法啟用主鏡頭：" + err.message);
+  }
+}
+
+async function initFrontCamera(videoId) {
+  try {
+    await navigator.mediaDevices.getUserMedia({ video: true });
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const videoDevices = devices.filter(device => device.kind === 'videoinput');
+    const frontCamera = videoDevices.find(d => d.label.toLowerCase().includes('front')) || videoDevices[0];
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: frontCamera.deviceId } } });
+    document.getElementById(videoId).srcObject = stream;
+  } catch (err) {
+    alert("❌ 無法啟用前鏡頭：" + err.message);
   }
 }
 
 function captureIdPhoto() {
-  const video = document.getElementById('externalVideo');
+  const video = document.getElementById('idVideo');
   const canvas = document.getElementById('idCanvas');
   const ctx = canvas.getContext('2d');
   ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -109,70 +103,94 @@ function captureIdPhoto() {
 }
 
 function capturePhoto() {
-  const video = document.getElementById('idVideo');
-  const canvas = document.getElementById('idCanvas');
-  const ctx = canvas.getContext('2d');
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-  const dataURL = canvas.toDataURL('image/jpeg', 0.9);
-  document.getElementById('idPreview').src = dataURL;
-  document.getElementById('idPreview').style.display = 'block';
+  const ctx = document.getElementById('canvas').getContext('2d');
+  ctx.drawImage(document.getElementById('video'), 0, 0, 320, 240);
+  const dataURL = document.getElementById('canvas').toDataURL('image/jpeg', 0.9);
+  document.getElementById('snapshot').src = dataURL;
 }
- 
+
 async function submitPhotos() {
+  console.log("👉 submitPhotos 被呼叫了");
+
+  const idCanvas = document.getElementById('idCanvas');
+  const idDataUrl = idCanvas.toDataURL('image/jpeg', 0.9);
+  const idBlob = await (await fetch(idDataUrl)).blob();
+
+  const selfieDataUrl = document.getElementById('canvas').toDataURL('image/jpeg', 0.9);
+  const selfieBlob = await (await fetch(selfieDataUrl)).blob();
+
   const phone = document.getElementById('phone').value.trim();
-  if (!phone) return alert('請輸入手機號碼');
+  if (!idBlob || !selfieBlob || !phone) {
+    alert("請先完成所有拍照與輸入手機號碼");
+    return;
+  }
 
-  const idBlob = await (await fetch(document.getElementById('idCanvas').toDataURL('image/jpeg', 0.9))).blob();
-  const selfieBlob = await (await fetch(document.getElementById('canvas').toDataURL('image/jpeg', 0.9))).blob();
+  const reservation = await getReservationByPhone(phone);
+  if (!reservation) {
+    document.getElementById('result').innerText = "❌ 查無預約";
+    return;
+  }
 
-  const reservationRes = await fetch(RESERVATION_SHEET_URL);
-  const reservationData = await reservationRes.json();
-  const matched = reservationData.find(e => e['電話'] === phone || e['電話'] === `'${phone}`);
-  if (!matched) return document.getElementById('result').innerText = '❌ 查無預約';
+  document.getElementById('result').innerText = "⏳ 驗證中...";
+  const resizedId = await resizeImage(idBlob);
+  const idNumber = await checkIfValidDocument(resizedId);
+  if (!idNumber) {
+    document.getElementById('result').innerText = "❌ 身分證識別失敗";
+    return;
+  }
 
   const formData = new FormData();
-  formData.append('apikey', OCR_SPACE_API_KEY);
-  formData.append('language', 'eng');
-  formData.append('file', idBlob);
-  const ocrRes = await fetch(OCR_SPACE_ENDPOINT, { method: 'POST', body: formData });
-  const ocrData = await ocrRes.json();
-  const text = ocrData?.ParsedResults?.[0]?.ParsedText || '';
-  document.getElementById('ocrText').innerText = text;
+  formData.append('api_key', FACEPP_API_KEY);
+  formData.append('api_secret', FACEPP_API_SECRET);
+  formData.append('image_file1', resizedId);
+  formData.append('image_file2', selfieBlob);
 
-  const idNumber = text.match(/[A-Z][12]\d{8}/)?.[0] || '';
-  if (!idNumber) return document.getElementById('result').innerText = '❌ 身分證號未識別';
+  try {
+    const res = await fetch(FACEPP_ENDPOINT, { method: 'POST', body: formData });
+    const json = await res.json();
+    const similarity = json.confidence;
 
-  const compareForm = new FormData();
-  compareForm.append('api_key', FACEPP_API_KEY);
-  compareForm.append('api_secret', FACEPP_API_SECRET);
-  compareForm.append('image_file1', idBlob);
-  compareForm.append('image_file2', selfieBlob);
-  const compareRes = await fetch(FACEPP_ENDPOINT, { method: 'POST', body: compareForm });
-  const compareData = await compareRes.json();
+    if (similarity && similarity > 60) {
+      document.getElementById('result').innerText = `✅ 相似度 ${similarity}`;
+      const today = new Date().toISOString().split('T')[0];
+      const usedRooms = JSON.parse(localStorage.getItem('usedRooms_' + today) || '[]');
+      const room = [...Array(12).keys()].map(i => i + 1).find(r => !usedRooms.includes(r));
+      if (!room) return document.getElementById('roomInfo').innerText = "❌ 房間已滿";
+      usedRooms.push(room);
+      localStorage.setItem('usedRooms_' + today, JSON.stringify(usedRooms));
+      document.getElementById('roomInfo').innerText = `房號：${room}
+入場密碼：8899`;
 
-  const score = compareData?.confidence || 0;
-  if (score < 60) return document.getElementById('result').innerText = `❌ 驗證失敗，相似度 ${score}`;
-  document.getElementById('result').innerText = `✅ 相似度 ${score}`;
+      const payload = new URLSearchParams();
+      payload.append('data', [
+        reservation['商品名稱'] || '',
+        reservation['姓名'] || '',
+        reservation['電話'] || '',
+        reservation['Email'] || '',
+        reservation['開始時間'] || '',
+        reservation['結束時間'] || '',
+        idNumber
+      ].join(','));
 
-  const payload = new URLSearchParams();
-  payload.append('data', [
-    matched['商品名稱'],
-    matched['姓名'],
-    matched['電話'],
-    matched['Email'],
-    matched['開始時間'],
-    matched['結束時間'],
-    idNumber
-  ].join(','));
+      const writeRes = await fetch(ID_WRITE_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: payload
+      });
 
-  const writeRes = await fetch(ID_WRITE_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: payload
-  });
-
-  const writeText = await writeRes.text();
-  document.getElementById('roomInfo').innerText = writeText.includes('Success') ? '✅ 身分證已寫入' : `❌ 寫入失敗：${writeText}`;
+      const writeText = await writeRes.text();
+      document.getElementById('roomInfo').innerText += writeText.includes('Success')
+        ? `
+✅ 身分證號已寫入`
+        : `
+❌ 寫入失敗：${writeText}`;
+    } else {
+      document.getElementById('result').innerText = `❌ 驗證失敗，相似度 ${similarity}`;
+    }
+  } catch (e) {
+    console.error(e);
+    document.getElementById('result').innerText = "⚠️ 驗證過程錯誤：" + e.message;
+  }
 }
 </script>
 </body>
