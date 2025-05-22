@@ -66,14 +66,18 @@ function nextStep(n) {
 }
 function prevStep(n) { nextStep(n); }
 
+let idStream = null;
+let selfieStream = null;
+
 async function initMainCamera(videoId) {
   try {
-    if (currentStream) {
-      currentStream.getTracks().forEach(track => track.stop());
+    if (idStream) {
+      idStream.getTracks().forEach(track => track.stop());
+      document.getElementById(videoId).srcObject = null;
     }
     const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
     document.getElementById(videoId).srcObject = stream;
-    currentStream = stream;
+    idStream = stream;
   } catch (err) {
     alert("❌ 無法啟用主鏡頭：" + err.message);
     console.error(err);
@@ -82,12 +86,13 @@ async function initMainCamera(videoId) {
 
 async function initFrontCamera(videoId) {
   try {
-    if (currentStream) {
-      currentStream.getTracks().forEach(track => track.stop());
+    if (selfieStream) {
+      selfieStream.getTracks().forEach(track => track.stop());
+      document.getElementById(videoId).srcObject = null;
     }
     const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
     document.getElementById(videoId).srcObject = stream;
-    currentStream = stream;
+    selfieStream = stream;
   } catch (err) {
     alert("❌ 無法啟用前鏡頭：" + err.message);
     console.error(err);
