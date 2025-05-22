@@ -9,7 +9,6 @@
     video, canvas, img { width: 320px; display: block; margin: 10px auto; }
     pre { white-space: pre-wrap; background: #f3f3f3; padding: 8px; border-radius: 4px; }
     .error { color: red; font-weight: bold; }
-    #cameraSelect { display: block; margin: 10px auto; padding: 5px; font-size: 16px; }
   </style>
 </head>
 <body>
@@ -22,18 +21,16 @@
   </div>
 
   <div id="step2" class="step">
-    <h2>拍攝您的證件照片</h2>
-    <video id="idVideo" width="320" height="240" autoplay playsinline muted></video><br>
-    <button onclick="captureIdPhoto()">拍照</button><br><br>
+    <h2>拍攝身分證</h2>
+    <video id="externalVideo" autoplay playsinline></video><br>
+    <button onclick="startExternalCamera('externalVideo')">啟用外接鏡頭</button>
+    <button onclick="captureIdPhoto()">拍照並進入下一步</button>
     <canvas id="idCanvas" width="320" height="240" style="display:none;"></canvas>
-    <img id="idPreview" src="" style="display:none; border:1px solid #ccc;"><br>
-    <button onclick="prevStep(1)">上一步</button>
-    <button onclick="nextStep(3)">下一步</button>
   </div>
+
 
   <div id="step3" class="step">
     <h2>拍攝現場自拍照</h2>
-    <select id="cameraSelect" onchange="startSelectedCamera()"></select>
     <video id="video" width="320" height="240" autoplay playsinline muted></video><br>
     <button onclick="capturePhoto()">拍照</button><br><br>
     <canvas id="canvas" width="320" height="240" style="display:none;"></canvas>
@@ -66,7 +63,7 @@
     }
     document.getElementById('step' + n).classList.add('active');
     if (n === 2) initIdCamera();
-    if (n === 3) initCameraList();
+    if (n === 3) initCamera();
   }
 
   function prevStep(n) {
@@ -82,63 +79,25 @@
     }
   }
 
-  async function initCameraList() {
+  async function initCamera() {
     try {
-      // 先拿到串流（實際播放以授權裝置名）
-      const tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
-  
-      // 讓裝置名可解鎖
-      const dummyVideo = document.createElement('video');
-      dummyVideo.srcObject = tempStream;
-      dummyVideo.play();
-      await new Promise(r => setTimeout(r, 500)); // 給時間讓 device label 解鎖
-  
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const videoDevices = devices.filter(d => d.kind === 'videoinput');
-      const select = document.getElementById('cameraSelect');
-  
-      if (videoDevices.length === 0) {
-        alert("⚠️ 找不到任何鏡頭裝置");
-        return;
-      }
-  
-      select.innerHTML = videoDevices.map(device =>
-        `<option value="${device.deviceId}">${device.label || '相機'}</option>`
-      ).join('');
-  
-      // 停用這個 dummy stream
-      tempStream.getTracks().forEach(track => track.stop());
-  
-      startSelectedCamera(); // 啟動預設鏡頭
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      document.getElementById('video').srcObject = stream;
     } catch (err) {
-      alert("❌ 無法列出相機：" + err.message);
-      console.error(err);
-    }
-  }
-
-  async function startSelectedCamera() {
-    const deviceId = document.getElementById('cameraSelect').value;
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { deviceId: { exact: deviceId } },
-        audio: false
-      });
-      const video = document.getElementById('video');
-      video.srcObject = stream;
-      await video.play();
-    } catch (err) {
-      alert("❌ 無法啟動鏡頭：" + err.message);
+      alert("❌ 開啟前鏡頭失敗：" + err.message);
     }
   }
 
   function captureIdPhoto() {
-    const video = document.getElementById('idVideo');
+    const video = document.getElementById('externalVideo');
     const canvas = document.getElementById('idCanvas');
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const dataURL = canvas.toDataURL('image/jpeg', 0.9);
-    document.getElementById('idPreview').src = dataURL;
-    document.getElementById('idPreview').style.display = 'block';
+    const context = canvas.getContext('2d');
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+  
+    // 可轉成圖片資料用於上傳
+    const imageData = canvas.toDataURL('image/png');
+    console.log('身分證影像 Base64：', imageData);
+    // 進入下一步...
   }
 
   function capturePhoto() {
@@ -201,6 +160,8 @@
   }
 
   async function submitPhotos() {
+    console.log("👉 submitPhotos 被呼叫了");
+
     const idCanvas = document.getElementById('idCanvas');
     const idDataUrl = idCanvas.toDataURL('image/jpeg', 0.9);
     const idBlob = await (await fetch(idDataUrl)).blob();
@@ -278,6 +239,36 @@
       document.getElementById('result').innerText = "⚠️ 驗證過程錯誤：" + e.message;
     }
   }
+let externalCameraId = null;
+
+// 抓取可用的攝影機裝置清單
+async function loadCameras() {
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  const videoDevices = devices.filter(device => device.kind === 'videoinput');
+
+  if (videoDevices.length > 1) {
+    // 假設最後一個是外接鏡頭
+    externalCameraId = videoDevices[videoDevices.length - 1].deviceId;
+  } else if (videoDevices.length === 1) {
+    externalCameraId = videoDevices[0].deviceId;
+  }
+}
+
+// 啟用外接鏡頭
+async function startExternalCamera(videoElementId) {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { deviceId: externalCameraId ? { exact: externalCameraId } : undefined }
+    });
+    const videoElement = document.getElementById(videoElementId);
+    videoElement.srcObject = stream;
+  } catch (err) {
+    console.error('無法啟用外接鏡頭', err);
+  }
+}
+
+window.addEventListener('load', loadCameras);
+
 </script>
 </body>
 </html>
