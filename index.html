@@ -142,20 +142,29 @@ function resizeImage(file, maxSize = 1000) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const reader = new FileReader();
-    reader.onload = (e) => { img.src = e.target.result; };
+
+    reader.onload = (e) => {
+      img.src = e.target.result;
+    };
+
     img.onload = () => {
-      const canvas = document.createElement('canvas');
       const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+      const canvas = document.createElement('canvas');
       canvas.width = img.width * scale;
       canvas.height = img.height * scale;
       const ctx = canvas.getContext('2d');
+
+      // 強化處理：提高清晰度與對比
+      ctx.filter = 'contrast(140%) brightness(110%) saturate(120%)';
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
       canvas.toBlob(blob => {
-        const file = new File([blob], 'resized.jpg', { type: 'image/jpeg' });
-        ocrDebugImg.src = URL.createObjectURL(blob); // 顯示 resize 過的影像
+        const file = new File([blob], 'enhanced.jpg', { type: 'image/jpeg' });
+        ocrDebugImg.src = URL.createObjectURL(blob); // debug 預覽圖
         resolve(file);
-      }, 'image/jpeg', 0.8);
+      }, 'image/jpeg', 0.9); // 保留較高畫質
     };
+
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
@@ -240,7 +249,7 @@ async function submitPhotos() {
     return;
   }
 
-  const isValidDoc = await checkIfValidDocument(idBlob);
+  const isValidDoc = await checkIfValidDocument(resizedIdBlob);
   if (!isValidDoc) {
     result.innerText = "❌ 此照片無法識別為正式證件，請重新拍攝。";
     return;
