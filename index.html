@@ -68,8 +68,12 @@ function prevStep(n) { nextStep(n); }
 
 async function initMainCamera(videoId) {
   try {
+    if (currentStream) {
+      currentStream.getTracks().forEach(track => track.stop());
+    }
     const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
     document.getElementById(videoId).srcObject = stream;
+    currentStream = stream;
   } catch (err) {
     alert("❌ 無法啟用主鏡頭：" + err.message);
     console.error(err);
@@ -78,10 +82,15 @@ async function initMainCamera(videoId) {
 
 async function initFrontCamera(videoId) {
   try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-    document.getElementById('video').srcObject = stream;
+    if (currentStream) {
+      currentStream.getTracks().forEach(track => track.stop());
+    }
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
+    document.getElementById(videoId).srcObject = stream;
+    currentStream = stream;
   } catch (err) {
-    alert("❌ 開啟前鏡頭失敗：" + err.message);
+    alert("❌ 無法啟用前鏡頭：" + err.message);
+    console.error(err);
   }
 }
 
